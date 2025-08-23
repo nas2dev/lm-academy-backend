@@ -3,9 +3,16 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Course;
+use App\Models\UserInfo;
+use App\Models\UserList;
+use App\Models\Scoreboard;
+use App\Models\CourseMaterial;
+use App\Models\UserCourseProgress;
+use Illuminate\Notifications\Notifiable;
+use App\Models\UserCourseSectionProgress;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
@@ -18,9 +25,17 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
+        'gender',
+        'date_of_birth',
+        'image',
+        'academic_year',
+        'acc_status',
+        'profile_completed',
         'email',
         'password',
+        'email_verified_at',
     ];
 
     /**
@@ -44,5 +59,41 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function lists() {
+        return $this->belongsToMany(UserList::class,"user_list_items", "user_id", "list_id")->withTimestamps();
+    }
+
+    public function UserInfo() {
+        return $this->hasOne(UserInfo::class, "user_id");
+    }
+
+    public function scoreboard() {
+        return $this->hasOne(Scoreboard::class);
+    }
+
+    public function createdCourses() {
+        return $this->hasMany(Course::class, "created_by");
+    }
+
+    public function updatedCourses() {
+        return $this->hasMany(Course::class, "updated_by");
+    }
+
+    public function createdCourseMaterials() {
+        return $this->hasMany(CourseMaterial::class, "created_by");
+    }
+
+    public function updatedCourseMaterials() {
+        return $this->hasMany(CourseMaterial::class, "updated_by");
+    }
+
+    public function courseSectionProgress() {
+        return $this->hasMany(UserCourseSectionProgress::class, "user_id");
+    }
+
+    public function courseProgress() {
+        return $this->hasMany(UserCourseProgress::class, "user_id");
     }
 }
