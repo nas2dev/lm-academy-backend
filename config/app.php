@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Frontend URL
+    |--------------------------------------------------------------------------
+    |
+    | This URL is used to generate the frontend URL for the application.
+    | The application is done using VUE.JS
+    |
+    */
+
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
