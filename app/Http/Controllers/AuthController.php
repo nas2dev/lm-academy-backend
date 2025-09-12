@@ -253,6 +253,7 @@ class AuthController extends Controller
                 "token" => "required|string",
                 "email" => "required|email"
             ]);
+
             if($validator->fails()) {
                 return response()->json([
                     "success" => false,
@@ -261,14 +262,47 @@ class AuthController extends Controller
                 ], 400);
             }
 
+            $email = $request->email;
+            $token = $request->token;
+
+            $verificationToken = EmailVerificationToken::where("email", $email)
+                        ->where("created_at", ">=", now()->subMinutes(self::TOKEN_VERIFICATION_DURATION_MINUTES))
+                        ->where("token", $token)->first();
+
+
+            if(!$verificationToken) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Invalid or expired registration token"
+                ], 404);
+            }
+
+            // existing user
+
+            $existingUser = User::where("email", $email)->first();
+
+            if($existingUser) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "User already exists"
+                ], 409); // 409 - Conflict
+            }
+
             return response()->json([
                 "success" => true,
                 "message" => "Registration token verified successfully",
                 "token" => $request->token,
-                "email" => $request->email
+                "email" => $request->email,
+                "verificationToken" => $verificationToken
             ], 200);
-        } catch (\Throwable $th) {
-            //throw $th;
+
+        } catch (\Exception $e) {
+            \Log::error("Error verifying registration token: " . $e->getMessage());
+            return response()->json([
+                "success" => false,
+                "message" => "Error verifying registration token",
+                "error" => $e->getMessage()
+            ], 500);
         }
 
     }
