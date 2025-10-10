@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PasswordResetMail;
 use Str;
 use App\Models\User;
 use App\Mail\SendInviteMail;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Models\EmailVerificationToken;
 use Illuminate\Support\Facades\Validator;
@@ -16,6 +18,7 @@ class AuthController extends Controller
 {
 
     private const TOKEN_VERIFICATION_DURATION_MINUTES = 60 * 24 * 7; // 7 days
+    private const PASSWORD_RESET_EXPIRATION_MINUTES = 60; // 1 Hour
     protected $user;
 
     public function __construct()
@@ -304,6 +307,77 @@ class AuthController extends Controller
                 "error" => $e->getMessage()
             ], 500);
         }
+    }
 
+    public function forgotPassword(Request $request): JsonResponse {
+        try {
+           $validator = Validator::make($request->all(), [
+            "email" => "required|email|exists:users,email"
+           ]);
+
+           if($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+           }
+
+           $email = $request->email;
+           $user = User::where("email", $email)->first();
+
+           if(!$user) {
+            return response()->json([
+                'success' => false,
+                "message" => "Email not found in our system",
+            ], 404);
+           }
+
+           $resetToken = Str::random(64);
+
+           //store reset token in database=
+           DB::table("password_reset_tokens")->updateOrInsert(
+            ["email" => $email],
+            [
+                "token" => $resetToken,
+                "created_at" => now()
+            ]
+           );
+           // prepare mail data
+           $resetUrl = config("app.frontend_url") . "/reset-password?token=" . $resetToken . "&email=" . urlencode($email);
+           $expirationTime = now()->addMinutes(self::PASSWORD_RESET_EXPIRATION_MINUTES)->format('F j, Y \a\t g:i A');
+
+           $mailData = [
+            "reset_url" => $resetUrl,
+            "user_name" => $user->first_name . " " . $user->last_name,
+            "expiration_time" => $expirationTime
+           ];
+
+           Mail::to($email)->send(new PasswordResetMail($mailData));
+
+           \Log::info("Password reset email sent", [
+                "email" => $email,
+                "user_id" => $user->id
+           ]);
+
+           return response()->json([
+                'success' => true,
+                "message" => "Password reset link sent to your email address",
+                "expires_in" => self::PASSWORD_RESET_EXPIRATION_MINUTES
+           ], 200);
+
+
+        } catch (\Exception $e) {
+            \Log::error("Error sending password reset email", [
+                "email" => $email,
+                "error" => $e->getMessage()
+           ]);
+
+           return response()->json([
+                "success" => false,
+                "message" => "Failed to send password reset email. Please try again.",
+                "error" => $e->getMessage()
+           ], 500);
+        }
     }
 }
