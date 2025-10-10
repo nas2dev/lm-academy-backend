@@ -17,6 +17,8 @@ Route::controller(AuthController::class)->prefix('auth')->middleware('api')->gro
     Route::post('refresh', 'refresh')->name('auth.refresh');
 
     Route::post('forgot-password', 'forgotPassword')->name("auth.forgotPassword");
+    Route::post("verify-reset-token", "verifyPasswordResetToken")->name("auth.verifyPasswordResetToken");
+    Route::post("reset-password", "resetPassword")->name("auth.resetPassword");
 
     // Auth routes
     Route::middleware('jwt.auth.token')->group(function () {
