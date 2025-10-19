@@ -430,8 +430,6 @@ class AuthController extends Controller
         }
     }
 
-
-
     public function resetPassword(Request $request): JsonResponse {
         try {
             $validator = Validator::make($request->all(), [
@@ -507,5 +505,79 @@ class AuthController extends Controller
                 ->first();
 
         return $resetToken ? true : false;
+    }
+
+    public function register(Request $request): JsonResponse {
+        try {
+           $validator = Validator::make($request->all(), [
+            "registration_code" => "required|string",
+            "first_name" => "required|string|max:255",
+            "last_name" => "required|string|max:255",
+            "gender" => "required|in:male,female,diverse",
+            "email" => "required|email|unique:users,email",
+            "password" => "required|string|min:8|confirmed",
+           ]);
+
+           if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+           }
+
+        //verify registration code
+           $verificationToken = EmailVerificationToken::where('code', $request->registration_code)
+                                                        ->where("email", $request->email)
+                                                        // ->where("token", $request->token)
+                                                        ->where("created_at", ">=", now()->subMinutes(self::TOKEN_VERIFICATION_DURATION_MINUTES))
+                                                        ->first();
+
+            if(!$verificationToken) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Invalid or expired registration code"
+                ], 400);
+            }
+
+            // create user
+            $user = User::create([
+                "first_name" => $request->first_name,
+                "last_name" => $request->last_name,
+                "gender" => $request->gender,
+                "email" => $request->email,
+                "password" => Hash::make($request->password),
+                "profile_completed" => false,
+                "email_verified_at" => now(),
+                ]);
+
+            $user->assignRole("User");
+
+
+            $verificationToken->delete();
+
+            $token = auth()->login($user);
+
+            return response()->json([
+                "success" => true,
+                "message" => "Registration completed successful. Please complete your profile.",
+                "access_token" => $token,
+                "token_type" => "bearer",
+                "expires_in" => auth()->factory()->getTTL() * 60,
+                "user" => $user->load("roles")
+            ], 201);
+
+
+        } catch (\Exception $e) {
+            \Log::error("Error registering user", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Registration failed. Please try again later.",
+                "error" => $e->getMessage()
+            ], 500);
+        }
     }
 }

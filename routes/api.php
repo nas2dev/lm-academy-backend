@@ -27,6 +27,7 @@ Route::controller(AuthController::class)->prefix('auth')->middleware('api')->gro
         Route::post('send-registration-invite', 'sendRegistrationInvite')->name('auth.sendRegistrationInvite');
     });
     Route::post('verify-registration-token', 'verifyRegistrationToken')->name('auth.verifyRegistrationToken');
+    Route::post("register", "register")->name("auth.register");
 });
 
 Route::post("test-mail-send" , function() {
