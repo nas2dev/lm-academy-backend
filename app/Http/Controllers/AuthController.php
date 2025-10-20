@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Str;
 use App\Models\User;
+use App\Models\UserInfo;
 use App\Mail\SendInviteMail;
 use Illuminate\Http\Request;
 use App\Mail\PasswordResetMail;
@@ -576,6 +577,84 @@ class AuthController extends Controller
             return response()->json([
                 "success" => false,
                 "message" => "Registration failed. Please try again later.",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function completeProfile(Request $request) {
+        try {
+            $user = auth()->user(); // academic_year == null, profile_completed == false, image == null etc
+
+            if(!$user) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Unauthorized"
+                ], 401);
+            }
+
+            if($user->profile_completed) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Profile is already completed"
+                ], 400);
+            }
+
+            $validator = Validator::make($request->all(), [
+                "academic_year" => 'required|integer|min:' . (date("Y") - 10) . '|max:' . (date("Y")),
+                "address" => 'required|string|max:255',
+                "telephone" => 'nullable|string|max:20',
+                "date_of_birth" => 'required|date|before:today',
+                "about" => "nullable|string|max:1000",
+                "profile_image" => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120' // 5MB
+            ]);
+
+            if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $imagePath = null;
+
+            if($request->hasFile("profile_image")) {
+                $image = $request->file("profile_image");
+                $imageName = time() . '_'. $user->id . "." . $image->getClientOriginalExtension(); //12312312321_41.jpg
+                $imagePath = $image->storeAs("profile_images", $imageName, 'public'); //storage/profile_images/12312312321_41.jpg
+            }
+
+            $user->update([
+                "academic_year" => $request->academic_year,
+                "date_of_birth" => $request->date_of_birth,
+                "image" => $imagePath,
+                "profile_completed" => true
+            ]);
+
+            // new insert or update on user_infos table
+            UserInfo::updateOrCreate(
+                ["user_id" => $user->id],
+                [
+                    "address" => $request->address,
+                    "tel" => $request->telephone,
+                    "about" => $request->about
+                ]
+            );
+
+            $user->refresh(); // academic_year == has value, profile_completed == true, image == has value etc
+            $user->load('roles', 'UserInfo');
+
+            return response()->json([
+                "success" => true,
+                "message" => "Profile completed successfully",
+                "user" => $user
+            ]);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to complete profile. Please try again later.",
                 "error" => $e->getMessage()
             ], 500);
         }
