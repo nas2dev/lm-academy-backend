@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UserController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -29,6 +30,12 @@ Route::controller(AuthController::class)->prefix('auth')->middleware('api')->gro
     });
     Route::post('verify-registration-token', 'verifyRegistrationToken')->name('auth.verifyRegistrationToken');
     Route::post("register", "register")->name("auth.register");
+});
+
+Route::controller(UserController::class)->prefix('users')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('all-users', 'allUsers')->name('users.allUsers');
+    });
 });
 
 Route::post("test-mail-send" , function() {

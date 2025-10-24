@@ -1,0 +1,48 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Log;
+use Validator;
+use Illuminate\Http\Request;
+
+class UserController extends Controller
+{
+    //
+    private const DEFAULT_PER_PAGE = 10;
+    private const MIN_PER_PAGE = 5;
+    private const MAX_PER_PAGE = 100;
+    public function allUsers(Request $request) {
+        try {
+            $validator = Validator::make($request->all(), [
+                "page" => "nullable|integer|min:1",
+                "per_page" => "nullable|integer|min:".self::MIN_PER_PAGE."|max:".self::MAX_PER_PAGE,
+                "searchTerm" => "nullable|string|max:255"
+            ]);
+
+            if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            return response()->json([
+                "success" => true,
+                "message" => "Users fetched successfully",
+                // "data" => $users
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Error getting all users", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting all users",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+}
