@@ -25,6 +25,7 @@ Route::controller(AuthController::class)->prefix('auth')->middleware('api')->gro
         Route::post('logout', 'logout')->name('auth.logout');
         Route::get('user-profile', 'userProfile')->name('auth.userProfile');
         Route::post('send-registration-invite', 'sendRegistrationInvite')->name('auth.sendRegistrationInvite');
+        Route::post("complete-profile", "completeProfile")->name("auth.completeProfile");
     });
     Route::post('verify-registration-token', 'verifyRegistrationToken')->name('auth.verifyRegistrationToken');
     Route::post("register", "register")->name("auth.register");
