@@ -35,6 +35,7 @@ Route::controller(AuthController::class)->prefix('auth')->middleware('api')->gro
 Route::controller(UserController::class)->prefix('users')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::middleware('role:Admin')->group(function () {
         Route::get('all-users', 'allUsers')->name('users.allUsers');
+        Route::post('change-role', "changeUserRole")->name("users.changeUserRole");
     });
 });
 

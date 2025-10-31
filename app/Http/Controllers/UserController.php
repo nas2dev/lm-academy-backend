@@ -69,4 +69,58 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    public function changeUserRole(Request $request) {
+        try {
+            $validator = Validator::make($request->all(), [
+                "user_id" => "required|integer|exists:users,id",
+                "role" => "required|string|exists:roles,name",
+                ]
+            );
+
+            if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $userId = $request->input("user_id");
+            $newRole = $request->input("role");
+
+            $user = User::with("roles")->find($userId);
+
+            $currentRole = $user->roles->first()->name;
+            if(strtolower($currentRole) == strtolower($newRole)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User already has this role',
+                ], 400);
+            }
+
+            // Remove all current roles and assign new role
+            $user->syncRoles([$newRole]);
+
+            // Refresh user data
+            $user->refresh();
+            $user->load("roles");
+
+            return response()->json([
+                "success" => true,
+                "message" => "User role updated successfully",
+                "user" => $user,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Error changing user role", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error changing user role",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
