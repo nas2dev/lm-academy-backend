@@ -70,7 +70,7 @@ class UserController extends Controller
         }
     }
 
-    public function changeUserRole(Request $request) {
+    public function changeUserRole(Request $request): mixed {
         try {
             $validator = Validator::make($request->all(), [
                 "user_id" => "required|integer|exists:users,id",
@@ -120,6 +120,56 @@ class UserController extends Controller
                 "success" => false,
                 "message" => "Error changing user role",
                 "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function changeAccountStatus(Request $request): mixed {
+        try {
+            $validator = Validator::make($request->all(), [
+                "user_id" => "required|integer|exists:users,id",
+                "status" => "required|integer|in:0,1"
+            ]);
+
+            if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $userId = $request->input("user_id");
+            $newStatus = $request->input("status");
+
+            $user = User::find($userId);
+
+            // Check if user already has this status
+            if($user->acc_status == $newStatus) {
+                $currentStatusText = $user->acc_status ? "active" : "inactive";
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User is already ' . $currentStatusText,
+                ], 400);
+            }
+
+            // Update account status
+            $user->acc_status = $newStatus;
+            $user->save();
+
+            return response()->json([
+                "success" => true,
+                "message" => "User account status updated successfully",
+            ], 200);
+        }  catch (\Exception $e) {
+            Log::error("Error getting all users", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting all users",
+                "error" => $e->getMessage()
             ], 500);
         }
     }

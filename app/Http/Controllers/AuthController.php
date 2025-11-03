@@ -41,6 +41,13 @@ class AuthController extends Controller
             return response()->json(['error' => 'Your email or password is invalid'], 401);
         }
 
+        if(!auth()->user()->acc_status) {
+            auth()->logout();
+            return response()->json([
+                'error' => 'Account disabled. Please contact the administrators.'
+            ], 403);
+        }
+
         return $this->respondWithToken($token);
     }
 
