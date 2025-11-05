@@ -173,4 +173,33 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    public function getUserProfileById($id): mixed {
+        try {
+            $user = User::with("roles", "UserInfo")->find($id);
+
+            if(!$user) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "User not found",
+                ], 404);
+            }
+
+            return response()->json([
+                "success" => true,
+                "message" => "User profile retrieved successfully",
+                "user" => $user
+            ]);
+        }  catch (\Exception $e) {
+            Log::error("Error getting all users", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting all users",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
 }

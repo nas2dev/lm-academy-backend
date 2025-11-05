@@ -38,6 +38,8 @@ Route::controller(UserController::class)->prefix('users')->middleware(['api', 'j
         Route::post('change-role', "changeUserRole")->name("users.changeUserRole");
         Route::post('change-status', "changeAccountStatus")->name("users.changeAccountStatus");
     });
+
+    Route::get('/{id}/profile', 'getUserProfileById')->name('users.getUserProfileById');
 });
 
 Route::post("test-mail-send" , function() {
