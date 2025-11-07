@@ -60,7 +60,7 @@ class AuthController extends Controller
     {
         $user_id = auth()->id();
 
-         $user = User::where("id", $user_id)->with("roles")->first();
+         $user = User::where("id", $user_id)->with(["roles", "UserInfo"])->first();
 
          return response()->json([
             "user" => $user
