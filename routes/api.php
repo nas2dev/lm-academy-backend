@@ -40,6 +40,11 @@ Route::controller(UserController::class)->prefix('users')->middleware(['api', 'j
     });
 
     Route::get('/{id}/profile', 'getUserProfileById')->name('users.getUserProfileById');
+    Route::put('update-profile', 'updateProfile')->name('users.updateProfile');
+    Route::post('profile/image', 'uploadProfileImage')->name('users.uploadProfileImage');
+    Route::delete('profile/image', 'deleteProfileImage')->name('users.deleteProfileImage');
+
+    Route::post('change-password', 'changePassword')->name('users.changePassword');
 });
 
 Route::post("test-mail-send" , function() {

@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use Log;
 use Validator;
 use App\Models\User;
+use App\Models\UserInfo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
@@ -200,6 +203,198 @@ class UserController extends Controller
                 "message" => "Error getting all users",
                 "error" => $e->getMessage()
             ], 500);
+        }
+    }
+
+    public function updateProfile(Request $request): mixed {
+        try {
+            $user = auth()->user();
+
+            $validator = Validator::make($request->all(), [
+                "first_name" => "required|string|min:2|max:255",
+                "last_name" => "required|string|min:2|max:255",
+                "gender" => "required|in:male,female,diverse",
+                'academic_year' => 'required|integer|min:' . (date("Y") - 80) . '|max:' . (date("Y")),
+                "date_of_birth" => "required|date|before:today",
+                "about" => "nullable|string|max:1000",
+                'address' => 'nullable|string|max:255',
+                'tel' => 'nullable|string|max:20',
+            ]);
+
+            if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $user->update([
+                "first_name" => $request->input("first_name"),
+                "last_name" => $request->input("last_name"),
+                "gender" => $request->input("gender"),
+                "academic_year" => $request->input("academic_year"),
+                "date_of_birth" => $request->input("date_of_birth"),
+            ]);
+
+            UserInfo::updateOrCreate(
+                ["user_id" => $user->id],
+                [
+                    "address" => $request->input("address"),
+                    "tel" => $request->input("tel"),
+                    "about" => $request->input("about"),
+                ]
+            );
+
+            $user->refresh();
+            $user->load(["roles", "UserInfo"]);
+
+            return response()->json([
+                "success" => true,
+                "message" => "Profile updated successfully",
+                "user" => $user
+            ], 200);
+        }   catch (\Exception $e) {
+            Log::error("Error updating profile", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error updating profile",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function uploadProfileImage(Request $request): mixed {
+        try {
+            $validator = Validator::make($request->all(), [
+                "profile_image" => "required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:5120" // 5MB
+            ]);
+
+            if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $user = auth()->user();
+
+            $oldImagePath = $user->image;
+            $image = $request->file("profile_image");
+            $imageName = time() . '_'. $user->id. ".". $image->getClientOriginalExtension();
+            $path = $image->storeAs("profile_images", $imageName, 'public');
+
+            $user->update(["image" => $path]);
+            $this->removeProfileImage($oldImagePath);
+
+            $user->refresh()->load(["roles", "UserInfo"]);
+
+            return response()->json([
+                "success" => true,
+                "message" => "Profile image uploaded successfully",
+                "user" => $user
+            ], 200);
+        }   catch (\Exception $e) {
+            Log::error("Error uploading profile image", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error uploading profile image",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function deleteProfileImage(Request $request): mixed {
+        try {
+            $user = auth()->user();
+            $imagePath = $user->image;
+
+            if(!$imagePath) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "No profile image to delete",
+                ], 400);
+            }
+
+            $user->update(["image" => null]);
+            $this->removeProfileImage($imagePath);
+
+            $user->refresh()->load(["roles", "UserInfo"]);
+
+            return response()->json([
+                "success" => true,
+                "message" => "Profile image deleted successfully",
+                "user" => $user
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Error deleting profile image", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error deleting profile image",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function changePassword(Request $request): mixed {
+        try {
+            $user = auth()->user();
+
+            $validator = Validator::make($request->all(), [
+                'old_password' => 'required|string|min:8',
+                'new_password' => 'required|string|min:8|confirmed',
+            ]);
+
+            if($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            if(!Hash::check($request->input('old_password'), $user->password)) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "The provided password is incorrect.",
+                ], 400);
+            }
+
+            $user->update([
+                'password' => Hash::make($request->input('new_password')),
+            ]);
+
+            return response()->json([
+                "success" => true,
+                "message" => "Password changed successfully",
+            ], 200);
+        }  catch (\Exception $e) {
+            Log::error("Error changing password", [
+                "user_id" => $user->id,
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error changing password",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function removeProfileImage(?string $path): void {
+        if($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
         }
     }
 }
