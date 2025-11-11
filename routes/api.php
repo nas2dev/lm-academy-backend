@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CourseController;
 use App\Mail\TestMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -47,7 +48,13 @@ Route::controller(UserController::class)->prefix('users')->middleware(['api', 'j
     Route::post('change-password', 'changePassword')->name('users.changePassword');
 });
 
-Route::post("test-mail-send" , function() {
+Route::controller(CourseController::class)->prefix('courses')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('/', 'getAllCourses')->name('courses.getAllCourses');
+    });
+});
+
+Route::post("test-mail-send", function () {
     $data = [
         "title" => "Test Mail FROM ROUTE",
         "message" => "This is a test mail"
@@ -60,11 +67,11 @@ Route::post("test-mail-send" , function() {
     ]);
 });
 
-Route::get('zen-quote', function() {
+Route::get('zen-quote', function () {
     try {
         $response = Http::get("https://zenquotes.io/api/random");
 
-        if($response->successful()) {
+        if ($response->successful()) {
             $quote = $response->json()[0];
             return response()->json([
                 'success' => true,
