@@ -51,6 +51,10 @@ Route::controller(UserController::class)->prefix('users')->middleware(['api', 'j
 Route::controller(CourseController::class)->prefix('courses')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::middleware('role:Admin')->group(function () {
         Route::get('/', 'getAllCourses')->name('courses.getAllCourses');
+        Route::post("/", "createCourse")->name("courses.createCourse");
+        Route::get('/{courseId}', 'getCourseById')->name('courses.getCourseById');
+        Route::delete('/{courseId}', 'deleteCourse')->name('courses.deleteCourse');
+        Route::post("change-status", "changeCourseStatus")->name("courses.changeCourseStatus");
     });
 });
 
