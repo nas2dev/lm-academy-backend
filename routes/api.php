@@ -55,6 +55,7 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
         Route::get('/{courseId}', 'getCourseById')->name('courses.getCourseById');
         Route::delete('/{courseId}', 'deleteCourse')->name('courses.deleteCourse');
         Route::post("change-status", "changeCourseStatus")->name("courses.changeCourseStatus");
+        Route::put('/{courseId}', 'updateCourse')->name('courses.updateCourse');
     });
 });
 

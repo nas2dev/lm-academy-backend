@@ -326,4 +326,124 @@ class CourseController extends Controller
             ], 500);
         }
     }
+
+    public function updateCourse(Request $request, int $courseId): mixed
+    {
+        $thumbnailPath = null;
+        try {
+            $course = Course::with(['modules.sections.materials', 'createdBy:id,first_name,last_name'])->find($courseId);
+
+            if (!$course) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Course not found.",
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                "title" => 'required|string|max:255',
+                "description" => 'required|string',
+                "status" => "nullable|integer|in:0,1",
+                "thumbnail" => "nullable|image|mimes:jpeg,jpg,png,gif,webp,svg|max:5120", // 5MB
+                "remove_thumbnail" => "nullable|boolean",
+                "remove_intro_video" => "nullable|boolean",
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $requestedStatus = $request->has("status") ? (int) $request->input("status") : (int) $course->status;
+
+            if ($requestedStatus === 1) {
+                $hasModules = $course->modules()->exists();
+                $hasSections = $course->modules()->whereHas('sections')->exists();
+                $hasMaterials = $course->modules()->whereHas("sections.materials")->exists();
+
+                if (!$hasModules || !$hasSections || !$hasMaterials) {
+                    return response()->json([
+                        "success" => false,
+                        "message" => "Cannot activate course until it has modules, sections and materials.",
+                        "errors" => [
+                            "modules" => $hasModules ? [] : ["At least one module is required."],
+                            "sections" => $hasSections ? [] : ["At least one section is required."],
+                            "materials" => $hasMaterials ? [] : ["At least one material is required."],
+                        ]
+                    ], 422);
+                }
+            }
+
+            $removeThumbnail = $request->boolean('remove_thumbnail');
+            $removeIntroVideo = $request->boolean('remove_intro_video');
+
+            if ($request->hasFile('thumbnail')) {
+                $thumbnailPath = $request->file('thumbnail')->store('course_thumbnails', 'public');
+            }
+
+            $user = $request->user();
+
+            DB::transaction(function () use ($course, $request, $user, $thumbnailPath, $removeThumbnail, $removeIntroVideo, $requestedStatus) {
+                if ($thumbnailPath) {
+                    if ($course->intro_image_url) {
+                        Storage::disk('public')->delete($course->intro_image_url);
+                    }
+                    $course->intro_image_url = $thumbnailPath;
+                } else if ($removeThumbnail && $course->intro_image_url) {
+                    Storage::disk('public')->delete($course->intro_image_url);
+                    $course->intro_image_url = null;
+                }
+
+                // TODO: Analyze again after chunk video upload is implemented
+                if ($removeIntroVideo && $course->intro_video_url) {
+                    Storage::disk('public')->delete($course->intro_video_url);
+                    $course->intro_video_url = null;
+                }
+
+                $course->title = $request->input('title');
+                $course->description = $request->input('description');
+                $course->status = $requestedStatus;
+                $course->updated_by = $user->id;
+                $course->save();
+            });
+
+            $course->refresh()->load('createdBy:id,first_name,last_name');
+
+            return response()->json([
+                "success" => true,
+                "message" => "Course updated successfully",
+                "course" => [
+                    "id" => $course->id,
+                    "title" => $course->title,
+                    "description" => $course->description,
+                    "thumbnail" => $course->intro_image_url,
+                    "intro_video" => $course->intro_video_url,
+                    "duration" => (int) ceil($course->duration / 60),
+                    "files" => $course->nr_of_files,
+                    "status" => $course->status ? 'Active' : 'Inactive',
+                    "created" => optional($course->created_at)->format('d.m.Y'),
+                    "created_by" => $course->createdBy ? trim(($course->createdBy->first_name . ' ' . $course->createdBy->last_name)) : null,
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            if ($thumbnailPath) {
+                Storage::disk('public')->delete($thumbnailPath);
+            }
+
+            \Log::error("Error updating course", [
+                "course_id" => $courseId,
+                "error" => $e->getMessage(),
+                "trace" => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error updating course",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
