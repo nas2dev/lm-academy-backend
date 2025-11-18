@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChunkUploadController;
 use App\Http\Controllers\CourseController;
 use App\Mail\TestMail;
 use Illuminate\Http\Request;
@@ -56,7 +57,12 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
         Route::delete('/{courseId}', 'deleteCourse')->name('courses.deleteCourse');
         Route::post("change-status", "changeCourseStatus")->name("courses.changeCourseStatus");
         Route::put('/{courseId}', 'updateCourse')->name('courses.updateCourse');
+        Route::delete('/{courseId}/video', 'deleteCourseVideo')->name('courses.deleteCourseVideo');
     });
+});
+
+Route::controller(ChunkUploadController::class)->prefix('chunks')->middleware(['api', 'throttle:1000,1', 'jwt.auth.token'])->group(function () {
+    Route::post('/upload/course-video', 'uploadCourseVideo')->name('chunk.uploadCourseVideo');
 });
 
 Route::post("test-mail-send", function () {

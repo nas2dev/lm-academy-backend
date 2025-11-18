@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use Log;
+use getID3;
 use Validator;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+
 class CourseController extends Controller
 {
     private const DEFAULT_PER_PAGE = 15;
@@ -95,6 +97,14 @@ class CourseController extends Controller
             }
 
             DB::transaction(function () use ($course) {
+                if ($course->intro_image_url && Storage::disk('public')->exists($course->intro_image_url)) {
+                    Storage::disk('public')->delete($course->intro_image_url);
+                }
+
+                if ($course->intro_video_url && Storage::disk('public')->exists($course->intro_video_url)) {
+                    Storage::disk('public')->delete($course->intro_video_url);
+                }
+
                 $course->delete();
             });
 
@@ -103,7 +113,6 @@ class CourseController extends Controller
                 "message" => "Course deleted successfully.",
             ], 200);
         } catch (\Exception $e) {
-
             \Log::error("Error deleting course", [
                 "course_id" => $courseId,
                 "error" => $e->getMessage(),
@@ -442,6 +451,79 @@ class CourseController extends Controller
             return response()->json([
                 "success" => false,
                 "message" => "Error updating course",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function deleteCourseVideo(Request $request, int $courseId): mixed
+    {
+        try {
+            $course = Course::find($courseId);
+
+            if (!$course) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Course not found.",
+                ], 404);
+            }
+
+            if (!$course->intro_video_url) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Course does not have an intro video.",
+                ], 404);
+            }
+
+            DB::transaction(function () use ($course) {
+                // Get video duration before deleting
+                $oldDuration = 0;
+                if (Storage::disk('public')->exists($course->intro_video_url)) {
+                    $getID3 = new getID3();
+                    $videoPath = Storage::disk('public')->path($course->intro_video_url);
+                    $fileInfo = $getID3->analyze($videoPath);
+                    // dd($fileInfo);
+                    if (isset($fileInfo['playtime_seconds'])) {
+                        $oldDuration = floor($fileInfo['playtime_seconds']);
+                    }
+                    Storage::disk('public')->delete($course->intro_video_url);
+                }
+
+                // Update course
+                $course->intro_video_url = null;
+                $course->nr_of_files = max(0, $course->nr_of_files - 1);
+                $course->duration = max(0, $course->duration - $oldDuration);
+                $course->save();
+            });
+
+            $course->refresh()->load('createdBy:id,first_name,last_name');
+
+            return response()->json([
+                "success" => true,
+                "message" => "Course video deleted successfully.",
+                "course" => [
+                    "id" => $course->id,
+                    "title" => $course->title,
+                    'description' => $course->description,
+                    'thumbnail' => $course->intro_image_url,
+                    'intro_video' => null,
+                    'duration' => (int) ceil($course->duration / 60),
+                    'files' => $course->nr_of_files,
+                    'status' => $course->status ? 'Active' : 'Inactive',
+                    'created' => optional($course->created_at)->format('d.m.Y'),
+                    'created_by' => $course->createdBy ? trim(($course->createdBy->first_name . ' ' . $course->createdBy->last_name)) : null,
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error("Error deleting course video", [
+                "course_id" => $courseId,
+                "error" => $e->getMessage(),
+                "trace" => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error deleting course video",
                 "error" => $e->getMessage(),
             ], 500);
         }
