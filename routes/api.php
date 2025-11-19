@@ -1,7 +1,5 @@
 <?php
 
-use App\Http\Controllers\ChunkUploadController;
-use App\Http\Controllers\CourseController;
 use App\Mail\TestMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -9,6 +7,9 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\ChunkUploadController;
+use App\Http\Controllers\CourseModuleController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -63,6 +64,13 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
 
 Route::controller(ChunkUploadController::class)->prefix('chunks')->middleware(['api', 'throttle:1000,1', 'jwt.auth.token'])->group(function () {
     Route::post('/upload/course-video', 'uploadCourseVideo')->name('chunk.uploadCourseVideo');
+});
+
+Route::controller(CourseModuleController::class)->prefix('modules')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('/', 'getAllModules')->name('courses.getAllModules');
+        Route::delete('/{moduleId}', 'deleteModule')->name('courses.deleteModule');
+    });
 });
 
 Route::post("test-mail-send", function () {
