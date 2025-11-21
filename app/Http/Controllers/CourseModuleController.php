@@ -126,4 +126,156 @@ class CourseModuleController extends Controller
             ], 500);
         }
     }
+
+    public function createModule(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                "description" => "required|string",
+                "course_id" => "required|integer|exists:courses,id"
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $module = DB::transaction(function () use ($request) {
+                return CourseModule::create([
+                    'course_id' => $request->input("course_id"),
+                    'title' => $request->input("title"),
+                    'description' => $request->input("description"),
+                    'nr_of_files' => 0,
+                    'duration' => 0,
+                ]);
+            });
+
+            return response()->json([
+                "success" => true,
+                "message" => "Module created successfully.",
+                "module" => [
+                    "id" => $module->id,
+                    "title" => $module->title,
+                    "description" => $module->description,
+                    "section_nr" => 0
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error("Error creating module", [
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                "course_id" => $request->input("course_id"),
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to create module. Please try again later.",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getModuleById(int $moduleId): JsonResponse
+    {
+        try {
+            $module = CourseModule::find($moduleId);
+
+            if (!$module) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Module not found.",
+                ], 404);
+            }
+
+            return response()->json([
+                "success" => true,
+                "message" => "Module retrieved successfully.",
+                "module" => [
+                    "id" => $module->id,
+                    "title" => $module->title,
+                    "description" => $module->description,
+                    "course_id" => $module->course_id,
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error("Error creating module", [
+                'module_id' => $moduleId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to retrieve module. Please try again later.",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function updateModule(Request $request, int $moduleId): JsonResponse
+    {
+        try {
+            $module = CourseModule::find($moduleId);
+
+            if (!$module) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Module not found.",
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                "description" => "required|string",
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            DB::transaction(function () use ($module, $request) {
+                $module->title = $request->input("title");
+                $module->description = $request->input("description");
+                $module->save();
+            });
+
+            $module->refresh();
+            $module->load('sections');
+
+            return response()->json([
+                "success" => true,
+                "message" => "Module updated successfully.",
+                "module" => [
+                    "id" => $module->id,
+                    "title" => $module->title,
+                    "description" => $module->description,
+                    "section_nr" => (int) $module->sections_count,
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error("Error updating module", [
+                'module_id' => $moduleId,
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to update module. Please try again later.",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

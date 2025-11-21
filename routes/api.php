@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CourseSectionController;
 use App\Mail\TestMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -69,7 +70,20 @@ Route::controller(ChunkUploadController::class)->prefix('chunks')->middleware(['
 Route::controller(CourseModuleController::class)->prefix('modules')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::middleware('role:Admin')->group(function () {
         Route::get('/', 'getAllModules')->name('courses.getAllModules');
+        Route::get('/{moduleId}', 'getModuleById')->name('courses.getModuleById');
+        Route::post('/', 'createModule')->name('courses.createModule');
+        Route::put('/{moduleId}', 'updateModule')->name('courses.updateModule');
         Route::delete('/{moduleId}', 'deleteModule')->name('courses.deleteModule');
+    });
+});
+
+Route::controller(CourseSectionController::class)->prefix('sections')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('/', 'getAllSections')->name('courses.getAllSections');
+        Route::delete('/{sectionId}', 'deleteSection')->name('courses.deleteSection');
+        Route::post('/', 'createSection')->name('courses.createSection');
+        Route::get('/{sectionId}', 'getSectionById')->name('courses.getSectionById');
+        Route::put('/{sectionId}', 'updateSection')->name('courses.updateSection');
     });
 });
 
