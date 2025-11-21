@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\CourseMaterialController;
 use App\Http\Controllers\CourseSectionController;
 use App\Mail\TestMail;
+use App\Models\CourseMaterial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -84,6 +86,12 @@ Route::controller(CourseSectionController::class)->prefix('sections')->middlewar
         Route::post('/', 'createSection')->name('courses.createSection');
         Route::get('/{sectionId}', 'getSectionById')->name('courses.getSectionById');
         Route::put('/{sectionId}', 'updateSection')->name('courses.updateSection');
+    });
+});
+
+Route::controller(CourseMaterialController::class)->prefix('materials')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('/section/{sectionId}', 'getCourseMaterialsBySectionId')->name('courses.getCourseMaterialsBySectionId');
     });
 });
 
