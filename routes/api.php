@@ -92,6 +92,7 @@ Route::controller(CourseSectionController::class)->prefix('sections')->middlewar
 Route::controller(CourseMaterialController::class)->prefix('materials')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::middleware('role:Admin')->group(function () {
         Route::get('/section/{sectionId}', 'getCourseMaterialsBySectionId')->name('courses.getCourseMaterialsBySectionId');
+        Route::post('/', 'createMaterial')->name('courses.createMaterial');
     });
 });
 
