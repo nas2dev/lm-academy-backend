@@ -67,6 +67,8 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
 
 Route::controller(ChunkUploadController::class)->prefix('chunks')->middleware(['api', 'throttle:1000,1', 'jwt.auth.token'])->group(function () {
     Route::post('/upload/course-video', 'uploadCourseVideo')->name('chunk.uploadCourseVideo');
+    Route::post('/upload/course-video-material', 'uploadCourseVideoMaterial')->name('chunk.uploadCourseVideoMaterial');
+
 });
 
 Route::controller(CourseModuleController::class)->prefix('modules')->middleware(['api', 'jwt.auth.token'])->group(function () {
