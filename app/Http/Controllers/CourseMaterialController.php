@@ -310,7 +310,7 @@ class CourseMaterialController extends Controller
                 ], 404);
             }
 
-            $validator = Validor::make($request->all(), [
+            $validator = Validator::make($request->all(), [
                 'title' => 'required|string|max:255',
                 'content' => 'nullable|string',
                 'material' => 'nullable|file'
@@ -325,7 +325,7 @@ class CourseMaterialController extends Controller
             }
 
             $materialUrl = $courseMaterial->material_url;
-            $user = $request->user;
+            $user = $request->user();
 
             // Handle file replacement for image and file types
             if ($request->hasFile('material') && ($courseMaterial->type === 'image' || $courseMaterial->type === 'file')) {
