@@ -278,6 +278,159 @@ class ChunkUploadController extends Controller
         }
     }
 
+    public function uploadUpdateCourseVideoMaterial(Request $request): mixed
+    {
+        $path = null;
+        try {
+            $user = $request->user();
+
+            if (!$user || !$user->hasRole("Admin")) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Unauthorized access."
+                ], 403);
+            }
+
+            $materialId = $request->material_id;
+            $courseMaterial = CourseMaterial::with(['section.module.course'])->find($materialId);
+            if (empty($courseMaterial)) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Course material not found."
+                ], 404);
+            }
+
+            if ($courseMaterial->type !== 'video') {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Material is not a video type."
+                ], 400);
+            }
+
+            // Extract file extension from the resumableFilename object
+            $fileExtension = strtolower(pathinfo($request->input("resumableFilename"), PATHINFO_EXTENSION));
+
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'file' => 'required',
+                'resumableFilename' => [
+                    function ($attribute, $value, $fail) use ($fileExtension) {
+                        $allowedExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm'];
+                        if (!in_array($fileExtension, $allowedExtensions)) {
+                            $fail("The file must be one of the following extensions: " . implode(", ", $allowedExtensions));
+                        }
+                    }
+                ],
+                'resumableTotalSize' => 'required|numeric|max:1073741824' // 1GB limit
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $receiver = new FileReceiver('file', $request, HandlerFactory::classFromRequest($request));
+
+            if ($receiver->isUploaded() === false) {
+                throw new UploadMissingFileException();
+            }
+
+            $save = $receiver->receive();
+
+            if ($save->isFinished()) {
+                $file = $save->getFile();
+                $path = $this->saveFileToStorage($file, 'course-materials');
+
+                // Initialize GetID3
+                $getID3 = new \getID3();
+
+                // Calculate old duration before deleting
+                $oldDuration = 0;
+                if ($courseMaterial->material_url && Storage::disk('public')->exists($courseMaterial->material_url)) {
+                    $oldVideoPath = Storage::disk('public')->path($courseMaterial->material_url);
+                    $oldFileInfo = $getID3->analyze($oldVideoPath);
+
+                    if (isset($oldFileInfo['playtime_seconds'])) {
+                        $oldDuration = floor($oldFileInfo['playtime_seconds']);
+                    }
+                }
+
+                // Analyze new file - get full path for getID3
+                $newDuration = 0;
+                $fullPath = Storage::disk('public')->path($path);
+                $fileInfo = $getID3->analyze($fullPath);
+
+                if (isset($fileInfo['playtime_seconds'])) {
+                    $duration = floor($fileInfo['playtime_seconds']);
+                }
+
+                // Calculate duration difference
+                $durationDifference = $newDuration - $oldDuration;
+
+
+                $user = $request->user();
+                $oldMaterialUrl = $courseMaterial->material_url;
+
+                DB::transaction(function () use ($request, $courseMaterial, $path, $durationDifference, $user, $oldMaterialUrl) {
+                    // Update the material
+                    $courseMaterial->update([
+                        'title' => $request->title,
+                        'material_url' => $path,
+                        'updated_by' => $user->id,
+                    ]);
+
+                    // Delete the old file
+                    if ($oldMaterialUrl && Storage::disk('public')->exists($oldMaterialUrl)) {
+                        Storage::disk('public')->delete($oldMaterialUrl);
+                    }
+
+                    // Update duration for section, module, and course
+                    $section = $courseMaterial->section;
+                    $section->duration = max(0, $section->duration + $durationDifference);
+                    $section->save();
+
+                    $module = CourseModule::find($section->module_id);
+                    $module->duration = max(0, $module->duration + $durationDifference);
+                    $module->save();
+
+                    $course = Course::find($section->module->course_id);
+                    $course->duration = max(0, $course->duration + $durationDifference);
+                    $course->save();
+                });
+
+                return response()->json([
+                    'status' => true,
+                    'path' => $path,
+                    'message' => 'Video material uploaded successfully',
+                ]);
+            }
+
+            return response()->json([
+                'status' => true,
+                'progress' => $save->handler()->getPercentageDone(),
+            ]);
+        } catch (\Throwable $e) {
+            // Clean up the uploaded fie if it exists
+            if ($path && Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+
+            Log::error("Error updating course video material", [
+                'material_id' => $materialId,
+                'user_id' => $user->id,
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error updating course video material"
+            ], 500);
+        }
+    }
+
     protected function saveFileToStorage($file, $folder): mixed
     {
         $fileName = time() . '_' . Str::random(10) . '.' . $file->getClientOriginalExtension();

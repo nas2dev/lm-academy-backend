@@ -417,4 +417,114 @@ class CourseMaterialController extends Controller
             ], 500);
         }
     }
+
+    public function getMaterialById(int $materialId): JsonResponse
+    {
+        try {
+            $material = CourseMaterial::with([
+                'creator:id,first_name,last_name',
+                'updator:id,first_name,last_name'
+            ])->find($materialId);
+
+            if (!$material) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Material not found.',
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Course material retrieved successfully.',
+                'material' => [
+                    'id' => $material->id,
+                    'title' => $material->title,
+                    'type' => $material->type,
+                    'content' => $material->content,
+                    'material_url' => $material->material_url,
+                    'sort_order' => $material->sort_order,
+                    'created_by' => $material->creator ? trim(($material->creator->first_name ?? '') . ' ' . ($material->creator->last_name ?? '')) : null,
+                    'updated_by' => $material->updator ? trim(($material->updator->first_name ?? '') . ' ' . ($material->updator->last_name ?? '')) : null,
+                    'created_at' => optional($material->created_at)->format('d.m.Y H:i'),
+                    'updated_at' => optional($material->updated_at)->format('d.m.Y H:i'),
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error('Error getting course material by id', [
+                'material_id' => $materialId,
+                'user_id' => request()->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get course material by id. Please try again later.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function updateSortOrder(Request $request, int $sectionId): JsonResponse
+    {
+        try {
+            $section = CourseSection::find($sectionId);
+
+            if (empty($section)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Section not found.',
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'materials' => 'required|array',
+                'materials.*.id' => 'required|exists:course_materials,id',
+                'materials.*.sort_order' => 'required|integer|min:0',
+            ], [
+                'materials.required' => 'The materials array is required.',
+                'materials.*.id.required' => 'The material id is required.',
+                'materials.*.id.exists' => 'This material does not exist.',
+                'materials.*.sort_order.required' => 'The sort order is required.',
+                'materials.*.sort_order.integer' => 'The sort order must be an integer.',
+                'materials.*.sort_order.min' => 'The sort order must be at least 0.',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $materials = $request->input('materials');
+
+            DB::transaction(function () use ($materials, $sectionId) {
+                foreach ($materials as $material) {
+                    // Verify the material belongs to this section
+                    CourseMaterial::where('id', $material['id'])->where('course_section_id', $sectionId)
+                        ->update(['sort_order' => $material['sort_order']]);
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Materials sort order updated successfully.',
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error('Error updating materials sort order', [
+                'section_id' => $sectionId,
+                'user_id' => request()->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update materials sort order. Please try again later.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

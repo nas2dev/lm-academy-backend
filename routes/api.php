@@ -68,7 +68,7 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
 Route::controller(ChunkUploadController::class)->prefix('chunks')->middleware(['api', 'throttle:1000,1', 'jwt.auth.token'])->group(function () {
     Route::post('/upload/course-video', 'uploadCourseVideo')->name('chunk.uploadCourseVideo');
     Route::post('/upload/course-video-material', 'uploadCourseVideoMaterial')->name('chunk.uploadCourseVideoMaterial');
-
+    Route::post('/upload/update-course-video-material', 'uploadUpdateCourseVideoMaterial')->name('chunk.uploadUpdateCourseVideoMaterial');
 });
 
 Route::controller(CourseModuleController::class)->prefix('modules')->middleware(['api', 'jwt.auth.token'])->group(function () {
@@ -97,6 +97,8 @@ Route::controller(CourseMaterialController::class)->prefix('materials')->middlew
         Route::post('/', 'createMaterial')->name('materials.createMaterial');
         Route::delete('/{materialId}', 'deleteMaterial')->name('materials.materialId');
         Route::put('/{materialId}', 'updateMaterial')->name('materials.updateMaterial');
+        Route::get('/{materialId}', 'getMaterialById')->name('materials.getMaterialById');
+        Route::post('/section/{sectionId}/update-sort-order', 'updateSortOrder')->name('materials.updateSortOrder');
     });
 });
 
