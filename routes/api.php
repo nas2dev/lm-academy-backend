@@ -83,18 +83,20 @@ Route::controller(CourseModuleController::class)->prefix('modules')->middleware(
 
 Route::controller(CourseSectionController::class)->prefix('sections')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::middleware('role:Admin')->group(function () {
-        Route::get('/', 'getAllSections')->name('courses.getAllSections');
-        Route::delete('/{sectionId}', 'deleteSection')->name('courses.deleteSection');
-        Route::post('/', 'createSection')->name('courses.createSection');
-        Route::get('/{sectionId}', 'getSectionById')->name('courses.getSectionById');
-        Route::put('/{sectionId}', 'updateSection')->name('courses.updateSection');
+        Route::get('/', 'getAllSections')->name('sections.getAllSections');
+        Route::delete('/{sectionId}', 'deleteSection')->name('sections.deleteSection');
+        Route::post('/', 'createSection')->name('sections.createSection');
+        Route::get('/{sectionId}', 'getSectionById')->name('sections.getSectionById');
+        Route::put('/{sectionId}', 'updateSection')->name('sections.updateSection');
     });
 });
 
 Route::controller(CourseMaterialController::class)->prefix('materials')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::middleware('role:Admin')->group(function () {
-        Route::get('/section/{sectionId}', 'getCourseMaterialsBySectionId')->name('courses.getCourseMaterialsBySectionId');
-        Route::post('/', 'createMaterial')->name('courses.createMaterial');
+        Route::get('/section/{sectionId}', 'getCourseMaterialsBySectionId')->name('materials.getCourseMaterialsBySectionId');
+        Route::post('/', 'createMaterial')->name('materials.createMaterial');
+        Route::delete('/{materialId}', 'deleteMaterial')->name('materials.materialId');
+        Route::put('/{materialId}', 'updateMaterial')->name('materials.updateMaterial');
     });
 });
 
