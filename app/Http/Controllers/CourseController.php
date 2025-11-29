@@ -528,4 +528,89 @@ class CourseController extends Controller
             ], 500);
         }
     }
+
+    public function getAllActiveCourses(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            $validator = Validator::make($request->all(), [
+                "page" => "nullable|integer|min:1",
+                "per_page" => "nullable|integer|min:" . self::MIN_PER_PAGE . "|max:" . self::MAX_PER_PAGE,
+                "searchTerm" => "nullable|string|max:255"
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $page = $request->input("page", 1);
+            $perPage = $request->input("per_page", self::DEFAULT_PER_PAGE);
+            $searchTerm = $request->input("searchTerm");
+
+            // Build the query for active courses only
+            $query = Course::with(['createdBy:id,first_name,last_name'])
+                ->where('status', 1);
+
+            // Apply search filter if search term is provided
+            if (!empty($searchTerm)) {
+                $searchTermLower = strtolower($searchTerm);
+                $query->whereRaw('LOWER(title) LIKE ?', ["%{$searchTermLower}%"]);
+            }
+
+            $query->orderByDesc('created_at');
+
+            $courses = $query->paginate($perPage, ['*'], 'page', $page);
+
+            // Transform courses and add user course status
+            $courses->getCollection()->transform(function (Course $course) use ($user) {
+                $courseData = [
+                    'id' => $course->id,
+                    'title' => $course->title,
+                    'description' => $course->description,
+                    'thumbnail' => $course->intro_image_url,
+                    'duration' => (int) ceil($course->duration / 60),  // Convert to minutes
+                    'files' => $course->nr_of_files,
+                    'created_at' => optional($course->created_at)->format('d.m.Y'),
+                ];
+
+                // Add user course status
+                $courseProgress = $course->progress->first();
+
+                if (!$courseProgress) {
+                    $courseData['user_progress'] = 'new';
+                    $courseData['status_label'] = 'New!';
+                } else if ($courseProgress->awarded) {
+                    $courseData['user_progress'] = 'completed';
+                    $courseData['status_label'] = 'Completed';
+                } else {
+                    $courseData['user_progress'] = 'progressing';
+                    $courseData['status_label'] = 'Progressing';
+                }
+
+                return $courseData;
+            });
+
+            return response()->json([
+                "success" => true,
+                "message" => "Courses retrieved successfully",
+                "courses" => $courses
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error("Error getting all active courses", [
+                "error" => $e->getMessage(),
+                "trace" => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting all active courses",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

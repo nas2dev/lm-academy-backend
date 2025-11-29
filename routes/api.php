@@ -63,6 +63,9 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
         Route::put('/{courseId}', 'updateCourse')->name('courses.updateCourse');
         Route::delete('/{courseId}/video', 'deleteCourseVideo')->name('courses.deleteCourseVideo');
     });
+
+    // User course routes
+    Route::get('/user/active', 'getAllActiveCourses')->name('courses.getAllActiveCourses');
 });
 
 Route::controller(ChunkUploadController::class)->prefix('chunks')->middleware(['api', 'throttle:1000,1', 'jwt.auth.token'])->group(function () {
