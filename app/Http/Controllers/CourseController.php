@@ -8,6 +8,7 @@ use Validator;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use App\Models\UserCourseProgress;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -609,6 +610,113 @@ class CourseController extends Controller
             return response()->json([
                 "success" => false,
                 "message" => "Error getting all active courses",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getCourseDetailsForUser(Request $request, int $courseId): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Fetch course with modules and sections
+            $course = Course::with([
+                'modules.sections',
+                'createdBy:id,first_name,last_name',
+                'updatedBy:id,first_name,last_name'
+            ])->where('id', $courseId)
+                ->first();
+
+            if (!$course) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Course not found or not available.",
+                ], 404);
+            }
+
+            // Calculate totals
+            $totalModules = $course->modules->count();
+            $totalSections = $course->modules->sum(function ($module) {
+                return $module->sections->count();
+            });
+
+            // Add total_sections to each module
+            $course->modules = $course->modules->map(function ($module) {
+                $module->total_sections = $module->sections->count();
+                return $module;
+            });
+
+            // Get user course progress
+            $userProgress = UserCourseProgress::where('course_id', $course->id)
+                ->where('user_id', $user->id)
+                ->first();
+
+            // Determine course status
+            $courseStatus = 'new';
+            if ($userProgress) {
+                if ($userProgress->pending_sections == 0 && $userProgress->pending_modules == 0) {
+                    $courseStatus = 'completed';
+                } else {
+                    $courseStatus = 'progressing';
+                }
+            }
+
+            // Get total users enrolled in the course
+            $totalUsersEnrolled = UserCourseProgress::where('course_id', $course->id)->count();
+
+            // Format response
+            return response()->json([
+                "success" => true,
+                "message" => "Course details retrieved successfully",
+                "course" => [
+                    "id" => $course->id,
+                    "title" => $course->title,
+                    "description" => $course->description,
+                    "thumbnail" => $course->intro_image_url,
+                    'intro_video' => $course->intro_video_url,
+                    'duration' => (int) ceil($course->duration / 60), // convert to minutes
+                    'files' => $course->nr_of_files,
+                    'created_at' => optional($course->created_at)->format('Y-m-d H:i:s'),
+                    'updated_at' => optional($course->updated_at)->format('Y-m-d H:i:s'),
+                    'created_by' => $course->createdBy ? trim(($course->createdBy->first_name . ' ' . $course->createdBy->last_name)) : null,
+                    'updated_by' => $course->updatedBy ? trim(($course->updatedBy->first_name . ' ' . $course->updatedBy->last_name)) : null,
+                    'modules' => $course->modules->map(function ($module) {
+                        return [
+                            'id' => $module->id,
+                            'title' => $module->title,
+                            'description' => $module->description,
+                            'duration' => (int) ceil($module->duration / 60), // convert to minutes
+                            'files' => $module->nr_of_files,
+                            'total_sections' => $module->total_sections,
+                            'sections' => $module->sections->map(function ($section) {
+                                return [
+                                    'id' => $section->id,
+                                    'title' => $section->title,
+                                    'description' => $section->description,
+                                    'duration' => (int) ceil($section->duration / 60), // convert to minutes
+                                    'files' => $section->nr_of_files,
+                                ];
+                            }),
+                        ];
+                    }),
+                ],
+                'total_modules' => $totalModules,
+                'total_sections' => $totalSections,
+                'totalUsersEnrolled' => $totalUsersEnrolled,
+                'courseStatus' => $courseStatus,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error("Error getting course details for user", [
+                "course_id" => $courseId,
+                "user_id" => $user->id,
+                "error" => $e->getMessage(),
+                "trace" => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting course details for user",
                 "error" => $e->getMessage(),
             ], 500);
         }

@@ -66,6 +66,7 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
 
     // User course routes
     Route::get('/user/active', 'getAllActiveCourses')->name('courses.getAllActiveCourses');
+    Route::get('/user/{courseId}', 'getCourseDetailsForUser')->name('courses.getCourseDetailsForUser');
 });
 
 Route::controller(ChunkUploadController::class)->prefix('chunks')->middleware(['api', 'throttle:1000,1', 'jwt.auth.token'])->group(function () {
