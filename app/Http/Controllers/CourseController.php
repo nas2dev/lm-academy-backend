@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use App\Models\UserCourseProgress;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Models\UserCourseSectionProgress;
 
 class CourseController extends Controller
 {
@@ -720,5 +721,187 @@ class CourseController extends Controller
                 "error" => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function enrollUser(Request $request, int $courseId): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Fetch course with modules and sections
+            $course = Course::with('modules.sections')
+                ->where('id', $courseId)
+                ->where('status', 1)
+                ->first();
+
+            if (!$course) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Course not found or not available.",
+                ], 404);
+            }
+
+            // Check if the user is already enrolled in the course
+            $existingEnrollment = UserCourseProgress::where('course_id', $course->id)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if ($existingEnrollment) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "You are already enrolled in this course.",
+                ], 409);
+            }
+
+            // Calculate total modules and sections
+            $totalModules = $course->modules->count();
+            $totalSections = $course->modules->sum(function ($module) {
+                return $module->sections->count();
+            });
+
+            // Create new user enrollment record
+            $userCourseProgress = new UserCourseProgress();
+            $userCourseProgress->user_id = $user->id;
+            $userCourseProgress->course_id = $course->id;
+            $userCourseProgress->pending_modules = $totalModules;
+            $userCourseProgress->pending_sections = $totalSections;
+            $userCourseProgress->completed_modules = 0;
+            $userCourseProgress->completed_sections = 0;
+            $userCourseProgress->completed_module_ids = [];
+            $userCourseProgress->completed_section_ids = [];
+            $userCourseProgress->awarded = false;
+            $userCourseProgress->save();
+
+            return response()->json([
+                "success" => true,
+                "message" => "You have been enrolled in the course successfully.",
+                "course" => [
+                    "id" => $course->id,
+                    "title" => $course->title,
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error("Error enrolling user in course", [
+                "course_id" => $courseId,
+                "user_id" => $user->id,
+                "error" => $e->getMessage(),
+                "trace" => $e->getTraceAsString()
+            ]);
+        }
+
+        return response()->json([
+            "success" => false,
+            "message" => "Error enrolling user in course",
+            "error" => $e->getMessage(),
+        ], 500);
+    }
+
+    public function showCourseModules(Request $request, int $courseId): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Fetch course with modules and sections
+            $course = Course::with(['modules.sections', 'createdBy:id,first_name,last_name', 'updatedBy:id,first_name,last_name'])
+                ->where('id', $courseId)
+                ->where('status', 1)
+                ->first();
+
+            if (!$course) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Course not found or not available.",
+                ], 404);
+            }
+
+            // Check if user is enrolled in the course
+            $userProgress = UserCourseProgress::where('user_id', $user->id)
+                ->where('course_id', $course->id)
+                ->first();
+
+            if (!$userProgress) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "You are not enrolled in this course.",
+                ], 403);
+            }
+
+            // Fetch all completed section IDs for this user and course
+            $allSectionIds = $course->modules->flatMap(function ($module) {
+                return $module->sections->pluck('id');
+            })->toArray();
+
+            $completedSectionIds = UserCourseSectionProgress::where('user_id', $user->id)
+                ->whereIn('course_section_id', $allSectionIds)
+                ->pluck('course_section_id')
+                ->toArray();
+
+            // Map modules with progress
+            $moduleData = $course->modules->map(function ($module) use ($completedSectionIds) {
+                // Calculate user progress for this module
+                $moduleSectionIds = $module->sections->pluck('id')->toArray();
+                $completedModuleSections = array_intersect($completedSectionIds, $moduleSectionIds);
+                $totalSections = count($moduleSectionIds);
+                $moduleProgress = $totalSections > 0 ? (count($completedModuleSections) / $totalSections) * 100 : 0;
+
+                return [
+                    'id' => $module->id,
+                    'title' => $module->title,
+                    'description' => $module->description,
+                    'progress' => round($moduleProgress),
+                    'total_sections' => $totalSections,
+                    'formatted_duration' => $this->formatDuration($module->duration),
+                    'sections' => $module->sections->map(function ($section) use ($completedSectionIds) {
+                        return [
+                            'id' => $section->id,
+                            'title' => $section->title,
+                            'nr_of_files' => $section->nr_of_files,
+                            'duration' => $this->formatDuration($section->duration),
+                            'completed' => in_array($section->id, $completedSectionIds)
+                        ];
+                    })
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Course modules retrieved successfully',
+                'course' => [
+                    'id' => $course->id,
+                    'title' => $course->title,
+                    'description' => $course->description,
+                    'created_by' => $course->createdBy ? trim(($course->createdBy->first_name . ' ' . $course->createdBy->last_name)) : null,
+                    'updated_by' => $course->updatedBy ? trim(($course->updatedBy->first_name . ' ' . $course->updatedBy->last_name)) : null,
+                    'modules' => $moduleData
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error("Error showing course modules", [
+                "course_id" => $courseId,
+                "user_id" => $user->id,
+                "error" => $e->getMessage(),
+                "trace" => $e->getTraceAsString()
+            ]);
+        }
+
+        return response()->json([
+            "success" => false,
+            "message" => "Error showing course modules",
+            "error" => $e->getMessage(),
+        ], 500);
+    }
+
+
+    private function formatDuration(int $seconds): string
+    {
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        $secs = $seconds % 60;
+
+        if ($hours > 0) {
+            return sprintf('%02d:%02d:%02d', $hours, $minutes, $secs);
+        }
+
+        return sprintf('%02d:%02d', $minutes, $secs);
     }
 }
