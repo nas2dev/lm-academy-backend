@@ -10,8 +10,10 @@ use Illuminate\Http\Request;
 use App\Models\CourseSection;
 use App\Models\CourseMaterial;
 use Illuminate\Http\JsonResponse;
+use App\Models\UserCourseProgress;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Models\UserCourseSectionProgress;
 
 class CourseMaterialController extends Controller
 {
@@ -523,6 +525,127 @@ class CourseMaterialController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update materials sort order. Please try again later.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // user routes
+
+    public function getSectionDetailsForUser(Request $request, int $sectionId): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // check if user is Admin - restrict access
+            if ($user->hasRole("Admin")) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This endpoint is not accessible to admins.',
+                ], 403);
+            }
+
+            // Fetch sections with module and course
+
+            $section = CourseSection::with([
+                'module:id,course_id,title,description,duration',
+                'module.course:id,title,duration',
+            ])->find($sectionId);
+
+            if (!$section) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Section not found.',
+                ], 404);
+            }
+
+            // check if user is enrolled in the course
+            $userProgress = UserCourseProgress::where('user_id', $user->id)
+                ->where('course_id', $section->module->course_id)
+                ->first();
+
+            if (!$userProgress) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "You are not enrolled in this course.",
+                ], 404);
+            }
+
+            // check if the section is completed for auth user
+            $sectionCompleted = UserCourseSectionProgress::where('user_id', $user->id)
+                ->where('course_section_id', $sectionId)
+                ->exists();
+
+            // Get course Materias for this section
+            $courseMaterials = CourseMaterial::with([
+                'creator:id,first_name,last_name',
+                'updator:id,first_name,last_name'
+            ])
+                ->where('course_section_id', $sectionId)
+                ->orderBy('sort_order', 'asc')
+                ->get()
+                ->map(function (CourseMaterial $material) {
+                    return [
+                        'id' => $material->id,
+                        'title' => $material->title,
+                        "type" => $material->type,
+                        "content" => $material->content,
+                        "material_url" => $material->material_url,
+                        "sort_order" => $material->sort_order,
+                        "created_by" => $material->creator
+                            ? trim(($material->creator->first_name ?? '') . ' ' . ($material->creator->last_name ?? ''))
+                            : null,
+                        "updated_by" => $material->updator
+                            ? trim(($material->updator->first_name ?? '') . ' ' . ($material->updator->last_name ?? ''))
+                            : null,
+                        "created_at" => optional($material->created_at)->toIso8601String(),
+                        "updated_at" => optional($material->updated_at)->toIso8601String(),
+                    ];
+                });
+
+            $nextStep = 1; // need to be coded
+            $previousStep = 1; // need to be coded
+
+            $courseCompleted = $userProgress->pending_sections == 0 && $userProgress->pending_modules == 0;
+
+            return response()->json([
+                'success' => true,
+                'message' => "Section details retrieved successfully.",
+                "section" => [
+                    "id" => $section->id,
+                    "title" => $section->title,
+                    "description" => $section->description,
+                    "duration" => $section->duration,
+                    "nr_of_files" => $section->nr_of_files,
+                ],
+                "module" => $section->module ? [
+                    "id" => $section->module->id,
+                    "title" => $section->module->title,
+                    "description" => $section->module->description,
+                    "duration" => $section->module->duration,
+                ] : null,
+                "course" => $section->module && $section->module->course ? [
+                    "id" => $section->module->course->id,
+                    "title" => $section->module->course->title,
+                    "duration" => $section->module->course->duration,
+                ] : null,
+                'courseMaterials' => $courseMaterials,
+                'next_step' => $nextStep,
+                'previous_step' => $previousStep,
+                'section_completed' => $sectionCompleted,
+                'course_completed' => $courseCompleted,
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error('Error retrieving section details for user', [
+                'section_id' => $sectionId,
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve section details for user. Please try again later.',
                 'error' => $e->getMessage(),
             ], 500);
         }
