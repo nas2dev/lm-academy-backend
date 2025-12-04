@@ -106,6 +106,8 @@ Route::controller(CourseMaterialController::class)->prefix('materials')->middlew
         Route::get('/{materialId}', 'getMaterialById')->name('materials.getMaterialById');
         Route::post('/section/{sectionId}/update-sort-order', 'updateSortOrder')->name('materials.updateSortOrder');
     });
+
+    Route::get('/user/section/{sectionId}', 'getSectionDetailsForUser')->name('materials.getSectionDetailsForUser');
 });
 
 Route::post("test-mail-send", function () {

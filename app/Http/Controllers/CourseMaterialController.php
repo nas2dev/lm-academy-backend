@@ -603,8 +603,8 @@ class CourseMaterialController extends Controller
                     ];
                 });
 
-            $nextStep = 1; // need to be coded
-            $previousStep = 1; // need to be coded
+            $nextStep = $this->getNextStep($section);
+            $previousStep = $this->getPreviousStep($section);
 
             $courseCompleted = $userProgress->pending_sections == 0 && $userProgress->pending_modules == 0;
 
@@ -649,5 +649,99 @@ class CourseMaterialController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function getNextStep($currentSection)
+    {
+        // check if module exists
+        if (!$currentSection->module) {
+            return [
+                'type' => 'course_end',
+                'section_id' => null,
+            ];
+        }
+
+        $nextSection = CourseSection::where('module_id', $currentSection->module_id)
+            ->where('id', '>', $currentSection->id)
+            ->orderBy('id', 'asc')
+            ->first();
+
+        if ($nextSection) {
+            return [
+                'type' => 'next_section',
+                'section_id' => $nextSection->id,
+            ];
+        }
+
+        $nextModule = CourseModule::where('course_id', $currentSection->module->course_id)
+            ->where('id', '>', $currentSection->module->id)
+            ->orderBy('id', 'asc')
+            ->first();
+
+        if ($nextModule) {
+            $firstSectionOfNextModule = CourseSection::where('module_id', $nextModule->id)
+                ->orderBy('id', 'asc')
+                ->first();
+
+            if ($firstSectionOfNextModule) {
+                return [
+                    'type' => 'next_module',
+                    'section_id' => $firstSectionOfNextModule->id,
+                ];
+            }
+
+        }
+
+        return [
+            'type' => 'course_end',
+            'section_id' => null,
+        ];
+    }
+
+    private function getPreviousStep($currentSection)
+    {
+        // check if module exists
+        if (!$currentSection->module) {
+            return [
+                'type' => 'course_start',
+                'section_id' => null,
+            ];
+        }
+
+        $previousSection = CourseSection::where('module_id', $currentSection->module_id)
+            ->where('id', '<', $currentSection->id)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($previousSection) {
+            return [
+                'type' => 'previous_section',
+                'section_id' => $previousSection->id,
+            ];
+        }
+
+        $previousModule = CourseModule::where('course_id', $currentSection->module->course_id)
+            ->where('id', '<', $currentSection->module->id)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($previousModule) {
+            $lastSectionOfPreviousModule = CourseSection::where('module_id', $previousModule->id)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if ($lastSectionOfPreviousModule) {
+                return [
+                    'type' => 'previous_module',
+                    'section_id' => $lastSectionOfPreviousModule->id,
+                ];
+            }
+
+        }
+
+        return [
+            'type' => 'course_start',
+            'section_id' => null,
+        ];
     }
 }
