@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Validator;
 use App\Models\Course;
+use App\Models\Scoreboard;
 use Illuminate\Support\Str;
 use App\Models\CourseModule;
 use Illuminate\Http\Request;
@@ -743,5 +744,230 @@ class CourseMaterialController extends Controller
             'type' => 'course_start',
             'section_id' => null,
         ];
+    }
+
+    public function markSectionDone(Request $request, int $sectionId): JsonResponse
+    {
+        try {
+            DB::beginTransaction();
+            $user = $request->user();
+
+            $section = CourseSection::with([
+                'module:id,course_id,title,description,duration',
+                'module.course:id,title,duration',
+                'materials'
+            ])->find($sectionId);
+
+            if (!$section) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Section not found",
+                ], 404);
+            }
+
+            $userProgress = UserCourseProgress::where('user_id', $user->id)
+                ->where('course_id', $section->module->course_id)
+                ->first();
+
+            if (!$userProgress) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "You are not enrolled in this course",
+                ], 404);
+            }
+
+            $userSectionProgress = UserCourseSectionProgress::where('user_id', $user->id)
+                ->where('course_section_id', $sectionId)
+                ->first();
+
+            if ($userSectionProgress) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "This section is already marked as completed",
+                ], 409);
+            }
+
+            if ($section->materials->isEmpty()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Cannot complete this section as it has no materials.",
+                ], 400);
+            }
+
+            UserCourseSectionProgress::create([
+                "user_id" => $user->id,
+                "course_section_id" => $sectionId
+            ]);
+
+            // Ensure completedSectionIds is an array
+            $completedSectionIds = is_array($userProgress->completed_section_ids) ? $userProgress->completed_section_ids : [];
+
+            // Check if the section ID is already in the completedSectionIds array
+            if (!in_array($sectionId, $completedSectionIds)) {
+                $completedSectionIds[] = $section->id; // Add the completed section ID
+            }
+
+            // Update the user progress with the new completed section IDs
+            $userProgress->completed_section_ids = $completedSectionIds;
+            $userProgress->completed_sections++; // Increase completed sections
+            $userProgress->pending_sections = max(0, $userProgress->pending_sections - 1); // Decrease pending sections
+            $userProgress->save();
+
+            $moduleId = $section->module_id;
+            $allSectionIds = CourseSection::where('module_id', $moduleId)->pluck('id')->toArray(); // Get all section IDs for the module
+            $completedModuleSections = array_intersect($allSectionIds, $completedSectionIds); // Check completed sections
+
+            if (count($completedModuleSections) === count($allSectionIds)) {
+                // If all sections are completed
+                $completed_module_ids = is_array($userProgress->completed_module_ids) ? $userProgress->completed_module_ids : [];
+
+                if (!in_array($moduleId, $completed_module_ids)) {
+                    $completed_module_ids[] = $moduleId; // Add the completed module ID
+                }
+
+                $userProgress->completed_module_ids = $completed_module_ids;
+                $userProgress->completed_modules++; // Increase completed modules
+                $userProgress->pending_modules = max(0, $userProgress->pending_modules - 1); // Decrease pending modules
+                $userProgress->save();
+            }
+
+            // Check if course is completed after section completion
+            if ($userProgress->pending_sections == 0 && $userProgress->pending_modules == 0 && !$userProgress->awarded) {
+                $userProgress->awarded = true;
+
+                // Award points for course completion based on module count
+                $moduleCount = CourseModule::where('course_id', $section->module->course_id)->count();
+
+                $points = match (true) {
+                    $moduleCount == 1 => 100,
+                    $moduleCount == 2 => 111,
+                    $moduleCount == 3, $moduleCount == 4 => 123,
+                    $moduleCount == 5 => 155,
+                    $moduleCount > 5 => 199,
+                    default => 0,
+                };
+
+                $scoreboard = Scoreboard::firstOrCreate([
+                    'user_id' => $user->id,
+                    'score' => 0
+                ]);
+
+                $scoreboard->score += $points;
+                $scoreboard->save();
+
+                $userProgress->save();
+            }
+
+            DB::commit();
+
+            return response()->json([
+                "success" => true,
+                "message" => "Section marked as completed successfully",
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            \Log::error("Error marking section as done", [
+                'section_id' => $sectionId,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark section as done. Please try again later.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function markSectionUndone(Request $request, int $sectionId): JsonResponse
+    {
+        try {
+            DB::beginTransaction();
+            $user = $request->user();
+
+            $section = CourseSection::with([
+                'module:id,course_id,title,description,duration',
+                'module.course:id,title,duration',
+            ])->find($sectionId);
+
+            if (!$section) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Section not found.',
+                ], 404);
+            }
+
+            $userProgress = UserCourseProgress::where('user_id', $user->id)
+                ->where('course_id', $section->module->course_id)
+                ->first();
+
+            if (!$userProgress) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not enrolled in this course.',
+                ], 404);
+            }
+
+            // Delete the entry from user_course_section_progress table
+            UserCourseSectionProgress::where('user_id', $user->id)
+                ->where('course_section_id', $sectionId)
+                ->delete();
+
+            // Ensure completedSectionIds is an array
+            $completedSectionIds = is_array($userProgress->completed_section_ids) ? $userProgress->completed_section_ids : [];
+
+            // Remove the section ID from the completedSectionIds array
+            if (in_array($sectionId, $completedSectionIds)) {
+                $completedSectionIds = array_values(array_diff($completedSectionIds, [$sectionId])); // Remove the section ID and reindex
+                // Update the user progress
+                $userProgress->completed_section_ids = $completedSectionIds;
+                $userProgress->completed_sections = max(0, $userProgress->completed_sections - 1); // Decrease completed sections
+                $userProgress->pending_sections++; // Increase pending sections
+                $userProgress->save();
+            }
+
+            $moduleId = $section->module_id;
+            $completed_module_ids = is_array($userProgress->completed_module_ids) ? $userProgress->completed_module_ids : [];
+
+            // Remove moduleId if it exists from module_ids
+            if (in_array($moduleId, $completed_module_ids)) {
+                // Check if the user has lost the module completion
+                $allSectionIds = CourseSection::where('module_id', $moduleId)->pluck('id')->toArray();
+                $completedModuleSections = array_intersect($allSectionIds, $completedSectionIds); // Check completed sections
+
+                // If the user has lost the module completion
+                if (count($completedModuleSections) < count($allSectionIds)) {
+                    // Remove the module ID from completed_module_ids
+                    $completed_module_ids = array_values(array_diff($completed_module_ids, [$moduleId])); // Remove the module ID and reindex
+
+                    $userProgress->completed_module_ids = $completed_module_ids;
+                    $userProgress->completed_modules = max(0, $userProgress->completed_modules - 1); // Decrease completed modules
+                    $userProgress->pending_modules++; // Increase pending modules
+                    $userProgress->save();
+                }
+            }
+
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Section marked as incomplete successfully.',
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error("Error marking section as incomplete", [
+                'section_id' => $sectionId,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark section as incomplete. Please try again later.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

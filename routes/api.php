@@ -108,6 +108,8 @@ Route::controller(CourseMaterialController::class)->prefix('materials')->middlew
     });
 
     Route::get('/user/section/{sectionId}', 'getSectionDetailsForUser')->name('materials.getSectionDetailsForUser');
+    Route::post('/user/section/{sectionId}/complete', 'markSectionDone')->name('materials.markSectionDone');
+    Route::post('/user/section/{sectionId}/incomplete', 'markSectionUndone')->name('materials.markSectionUndone');
 });
 
 Route::post("test-mail-send", function () {
