@@ -14,7 +14,7 @@ use App\Http\Controllers\CourseModuleController;
 use App\Http\Controllers\CourseSectionController;
 use App\Http\Controllers\CourseMaterialController;
 use App\Http\Controllers\UserCourseProgressController;
-
+use App\Http\Controllers\ScoreboardController;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
@@ -119,6 +119,10 @@ Route::controller(UserCourseProgressController::class)->prefix('course-progress'
     Route::middleware('role:Admin')->group(function () {
         Route::get('/', 'getUserCourseProgress')->name('course-progress.getUserCourseProgress');
     });
+});
+
+Route::controller(ScoreboardController::class)->prefix('scoreboard')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::get('/', 'getScoreboard')->name('scoreboard.getScoreboard');
 });
 
 Route::post("test-mail-send", function () {
