@@ -1,10 +1,8 @@
 <?php
 
-use App\Http\Controllers\CourseMaterialController;
-use App\Http\Controllers\CourseSectionController;
 use App\Mail\TestMail;
-use App\Models\CourseMaterial;
 use Illuminate\Http\Request;
+use App\Models\CourseMaterial;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +11,9 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\ChunkUploadController;
 use App\Http\Controllers\CourseModuleController;
+use App\Http\Controllers\CourseSectionController;
+use App\Http\Controllers\CourseMaterialController;
+use App\Http\Controllers\UserCourseProgressController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -41,6 +42,7 @@ Route::controller(AuthController::class)->prefix('auth')->middleware('api')->gro
 Route::controller(UserController::class)->prefix('users')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::middleware('role:Admin')->group(function () {
         Route::get('all-users', 'allUsers')->name('users.allUsers');
+        Route::get('/active-users-for-dropdown', 'getActiveUsersForDropdown')->name('users.getActiveUsersForDropdown');
         Route::post('change-role', "changeUserRole")->name("users.changeUserRole");
         Route::post('change-status', "changeAccountStatus")->name("users.changeAccountStatus");
     });
@@ -62,6 +64,7 @@ Route::controller(CourseController::class)->prefix('courses')->middleware(['api'
         Route::post("change-status", "changeCourseStatus")->name("courses.changeCourseStatus");
         Route::put('/{courseId}', 'updateCourse')->name('courses.updateCourse');
         Route::delete('/{courseId}/video', 'deleteCourseVideo')->name('courses.deleteCourseVideo');
+        Route::get('/dropdown/active-courses-for-dropdown', 'getActiveCoursesForDropdown')->name('courses.getActiveCoursesForDropdown');
     });
 
     // User course routes
@@ -110,6 +113,12 @@ Route::controller(CourseMaterialController::class)->prefix('materials')->middlew
     Route::get('/user/section/{sectionId}', 'getSectionDetailsForUser')->name('materials.getSectionDetailsForUser');
     Route::post('/user/section/{sectionId}/complete', 'markSectionDone')->name('materials.markSectionDone');
     Route::post('/user/section/{sectionId}/incomplete', 'markSectionUndone')->name('materials.markSectionUndone');
+});
+
+Route::controller(UserCourseProgressController::class)->prefix('course-progress')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('/', 'getUserCourseProgress')->name('course-progress.getUserCourseProgress');
+    });
 });
 
 Route::post("test-mail-send", function () {

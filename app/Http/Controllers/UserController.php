@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\JsonResponse;
 use Log;
 use Validator;
 use App\Models\User;
@@ -16,15 +17,16 @@ class UserController extends Controller
     private const DEFAULT_PER_PAGE = 10;
     private const MIN_PER_PAGE = 3;
     private const MAX_PER_PAGE = 100;
-    public function allUsers(Request $request) {
+    public function allUsers(Request $request)
+    {
         try {
             $validator = Validator::make($request->all(), [
                 "page" => "nullable|integer|min:1",
-                "per_page" => "nullable|integer|min:".self::MIN_PER_PAGE."|max:".self::MAX_PER_PAGE,
+                "per_page" => "nullable|integer|min:" . self::MIN_PER_PAGE . "|max:" . self::MAX_PER_PAGE,
                 "searchTerm" => "nullable|string|max:255"
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
@@ -39,13 +41,13 @@ class UserController extends Controller
             $query = User::with(["roles", "UserInfo"]);
 
             // Apply search filter if searchTerm is provided
-            if(!empty($searchTerm)) {
-                $query->where(function($q) use ($searchTerm) {
-                    $q->where("first_name", "like", "%". $searchTerm . '%')
-                        ->orWhere("last_name", "like", "%". $searchTerm . '%')
-                        ->orWhere("email", "like", "%". $searchTerm . '%')
-                        ->orWhereHas("UserInfo", function($q) use ($searchTerm) {
-                            $q->where("tel", "like", "%". $searchTerm . '%');
+            if (!empty($searchTerm)) {
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where("first_name", "like", "%" . $searchTerm . '%')
+                        ->orWhere("last_name", "like", "%" . $searchTerm . '%')
+                        ->orWhere("email", "like", "%" . $searchTerm . '%')
+                        ->orWhereHas("UserInfo", function ($q) use ($searchTerm) {
+                            $q->where("tel", "like", "%" . $searchTerm . '%');
                         });
                 });
             }
@@ -73,15 +75,18 @@ class UserController extends Controller
         }
     }
 
-    public function changeUserRole(Request $request): mixed {
+    public function changeUserRole(Request $request): mixed
+    {
         try {
-            $validator = Validator::make($request->all(), [
-                "user_id" => "required|integer|exists:users,id",
-                "role" => "required|string|exists:roles,name",
+            $validator = Validator::make(
+                $request->all(),
+                [
+                    "user_id" => "required|integer|exists:users,id",
+                    "role" => "required|string|exists:roles,name",
                 ]
             );
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
@@ -95,7 +100,7 @@ class UserController extends Controller
             $user = User::with("roles")->find($userId);
 
             $currentRole = $user->roles->first()->name;
-            if(strtolower($currentRole) == strtolower($newRole)) {
+            if (strtolower($currentRole) == strtolower($newRole)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'User already has this role',
@@ -127,14 +132,15 @@ class UserController extends Controller
         }
     }
 
-    public function changeAccountStatus(Request $request): mixed {
+    public function changeAccountStatus(Request $request): mixed
+    {
         try {
             $validator = Validator::make($request->all(), [
                 "user_id" => "required|integer|exists:users,id",
                 "status" => "required|integer|in:0,1"
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
@@ -148,7 +154,7 @@ class UserController extends Controller
             $user = User::find($userId);
 
             // Check if user already has this status
-            if($user->acc_status == $newStatus) {
+            if ($user->acc_status == $newStatus) {
                 $currentStatusText = $user->acc_status ? "active" : "inactive";
                 return response()->json([
                     'success' => false,
@@ -164,7 +170,7 @@ class UserController extends Controller
                 "success" => true,
                 "message" => "User account status updated successfully",
             ], 200);
-        }  catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error("Error getting all users", [
                 "error" => $e->getMessage()
             ]);
@@ -177,11 +183,12 @@ class UserController extends Controller
         }
     }
 
-    public function getUserProfileById($id): mixed {
+    public function getUserProfileById($id): mixed
+    {
         try {
             $user = User::with("roles", "UserInfo")->find($id);
 
-            if(!$user) {
+            if (!$user) {
                 return response()->json([
                     "success" => false,
                     "message" => "User not found",
@@ -193,7 +200,7 @@ class UserController extends Controller
                 "message" => "User profile retrieved successfully",
                 "user" => $user
             ]);
-        }  catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error("Error getting all users", [
                 "error" => $e->getMessage()
             ]);
@@ -206,7 +213,8 @@ class UserController extends Controller
         }
     }
 
-    public function updateProfile(Request $request): mixed {
+    public function updateProfile(Request $request): mixed
+    {
         try {
             $user = auth()->user();
 
@@ -221,7 +229,7 @@ class UserController extends Controller
                 'tel' => 'nullable|string|max:20',
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
@@ -254,7 +262,7 @@ class UserController extends Controller
                 "message" => "Profile updated successfully",
                 "user" => $user
             ], 200);
-        }   catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error("Error updating profile", [
                 "error" => $e->getMessage()
             ]);
@@ -267,13 +275,14 @@ class UserController extends Controller
         }
     }
 
-    public function uploadProfileImage(Request $request): mixed {
+    public function uploadProfileImage(Request $request): mixed
+    {
         try {
             $validator = Validator::make($request->all(), [
                 "profile_image" => "required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:5120" // 5MB
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
@@ -285,7 +294,7 @@ class UserController extends Controller
 
             $oldImagePath = $user->image;
             $image = $request->file("profile_image");
-            $imageName = time() . '_'. $user->id. ".". $image->getClientOriginalExtension();
+            $imageName = time() . '_' . $user->id . "." . $image->getClientOriginalExtension();
             $path = $image->storeAs("profile_images", $imageName, 'public');
 
             $user->update(["image" => $path]);
@@ -298,7 +307,7 @@ class UserController extends Controller
                 "message" => "Profile image uploaded successfully",
                 "user" => $user
             ], 200);
-        }   catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error("Error uploading profile image", [
                 "error" => $e->getMessage()
             ]);
@@ -311,12 +320,13 @@ class UserController extends Controller
         }
     }
 
-    public function deleteProfileImage(Request $request): mixed {
+    public function deleteProfileImage(Request $request): mixed
+    {
         try {
             $user = auth()->user();
             $imagePath = $user->image;
 
-            if(!$imagePath) {
+            if (!$imagePath) {
                 return response()->json([
                     "success" => false,
                     "message" => "No profile image to delete",
@@ -346,7 +356,8 @@ class UserController extends Controller
         }
     }
 
-    public function changePassword(Request $request): mixed {
+    public function changePassword(Request $request): mixed
+    {
         try {
             $user = auth()->user();
 
@@ -355,7 +366,7 @@ class UserController extends Controller
                 'new_password' => 'required|string|min:8|confirmed',
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
@@ -363,7 +374,7 @@ class UserController extends Controller
                 ], 422);
             }
 
-            if(!Hash::check($request->input('old_password'), $user->password)) {
+            if (!Hash::check($request->input('old_password'), $user->password)) {
                 return response()->json([
                     "success" => false,
                     "message" => "The provided password is incorrect.",
@@ -378,7 +389,7 @@ class UserController extends Controller
                 "success" => true,
                 "message" => "Password changed successfully",
             ], 200);
-        }  catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error("Error changing password", [
                 "user_id" => $user->id,
                 "error" => $e->getMessage()
@@ -392,8 +403,40 @@ class UserController extends Controller
         }
     }
 
-    private function removeProfileImage(?string $path): void {
-        if($path && Storage::disk('public')->exists($path)) {
+    public function getActiveUsersForDropdown(): JsonResponse
+    {
+        try {
+            // Get all active users with 'User' role (exclude admins)
+            $users = User::whereHas("roles", function ($query) {
+                $query->where("name", "User");
+            })
+                ->where("acc_status", 1) // Only active users
+                ->select("id", 'first_name', 'last_name', 'email')
+                ->orderBy("first_name", "asc")
+                ->orderBy("last_name", "asc")
+                ->get();
+
+            return response()->json([
+                "success" => true,
+                "message" => "Active users retrieved successfully",
+                "users" => $users
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Error getting active users for dropdown", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting active users for dropdown",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function removeProfileImage(?string $path): void
+    {
+        if ($path && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
         }
     }

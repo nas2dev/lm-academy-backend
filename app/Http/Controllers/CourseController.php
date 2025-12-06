@@ -891,7 +891,32 @@ class CourseController extends Controller
         ], 500);
     }
 
+    public function getActiveCoursesForDropdown(): JsonResponse
+    {
+        try {
+            // Get all active courses
+            $courses = Course::where('status', 1)
+                ->select('id', 'title')
+                ->orderBy('title', 'asc')
+                ->get();
 
+            return response()->json([
+                "success" => true,
+                "message" => "Active courses retrieved successfully",
+                "courses" => $courses
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error("Error getting active courses for dropdown", [
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting active courses for dropdown",
+                "error" => $e->getMessage(),
+            ], 500);
+        }
+    }
     private function formatDuration(int $seconds): string
     {
         $hours = floor($seconds / 3600);
