@@ -9,12 +9,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\UserListController;
+use App\Http\Controllers\ScoreboardController;
 use App\Http\Controllers\ChunkUploadController;
 use App\Http\Controllers\CourseModuleController;
 use App\Http\Controllers\CourseSectionController;
 use App\Http\Controllers\CourseMaterialController;
 use App\Http\Controllers\UserCourseProgressController;
-use App\Http\Controllers\ScoreboardController;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
@@ -123,6 +124,24 @@ Route::controller(UserCourseProgressController::class)->prefix('course-progress'
 
 Route::controller(ScoreboardController::class)->prefix('scoreboard')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::get('/', 'getScoreboard')->name('scoreboard.getScoreboard');
+});
+
+Route::controller(UserListController::class)->prefix("lists")->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::get('/', action: 'index')->name(name: 'lists.index');
+
+    Route::middleware('role:Admin')->group(function () {
+        Route::post("store", "store")->name("lists.store");
+        Route::patch("update-list-name/{id}", "updateListName")->name("lists.updateListName");
+        Route::delete("/{id}/delete", "destroy")->name("lists.destroy");
+
+        Route::get('/{id}/available-users', 'getAllAvailableUsers')->name('lists.getAllAvailableUsers');
+        Route::post("{id}/add-users", "addUsersToList")->name("lists.addUsersToList");
+        Route::delete("/{id}/remove-user", "removeUserFromList")->name("lists.removeUserFromList");
+
+    });
+
+    Route::get('/{id}/users', action: 'getUsersInList')->name('lists.getUsersInList');
+    Route::post('/{id}/pick-random-winner', 'pickRandomWinner')->name('lists.pickRandomWinner');
 });
 
 Route::post("test-mail-send", function () {
