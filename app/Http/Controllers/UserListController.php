@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\UserList;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class UserListController extends Controller
 {
@@ -45,7 +46,11 @@ class UserListController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'list_name' => 'required|string|between:2,100|unique:user_lists'
+                'list_name' => 'required|string|between:2,100|unique:user_lists',
+                'user_ids' => 'nullable|array',
+                'user_ids.*' => 'integer|exists:users,id',
+                'emails' => 'nullable|array',
+                'emails.*' => 'email'
             ]);
 
             if ($validator->fails()) {
@@ -56,15 +61,80 @@ class UserListController extends Controller
                 ], 422);
             }
 
-            $list = UserList::create([
-                'list_name' => $request->list_name
-            ]);
+            $userIds = $request->input('user_ids', []);
+            $emails = $request->input('emails', []);
+            $invalidEmails = [];
+            $notFoundEmails = [];
 
-            return response()->json([
+            // Look up user IDs from emails
+            $userIdsFromEmails = [];
+            if (!empty($emails) && is_array($emails)) {
+                foreach ($emails as $email) {
+                    // Validate email format (already validated by validator, but double-check)
+                    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                        $invalidEmails[] = $email;
+                        continue;
+                    }
+
+                    // Find user by email
+                    $user = User::where('email', $email)->first();
+                    if ($user) {
+                        $userIdsFromEmails[] = $user->id;
+                    } else {
+                        $notFoundEmails[] = $email;
+                    }
+                }
+            }
+
+            // Combine user IDs from both sources and remove duplicates
+            $allUserIds = array_unique(array_merge($userIds, $userIdsFromEmails));
+
+            // Create list and attach users in a transaction
+            $list = DB::transaction(function () use ($request, $allUserIds) {
+                // Create the list
+                $list = UserList::create([
+                    'list_name' => $request->list_name
+                ]);
+
+                // Attach users if any were provided
+                if (!empty($allUserIds)) {
+                    $attachData = [];
+                    $now = now();
+                    foreach ($allUserIds as $userId) {
+                        $attachData[$userId] = [
+                            'created_at' => $now,
+                            'updated_at' => $now
+                        ];
+                    }
+                    $list->users()->attach($attachData);
+                }
+
+                return $list;
+            });
+
+            // Load the list with users for response
+            $list->load('users:id,first_name,last_name,email');
+
+            // Prepare response
+            $response = [
                 'success' => true,
                 'message' => 'List created successfully',
                 'list' => $list
-            ], 201);
+            ];
+
+            // Add warnings if there were invalid/not found emails
+            $warnings = [];
+            if (!empty($invalidEmails)) {
+                $warnings[] = 'Invalid email format(s): ' . implode(', ', $invalidEmails);
+            }
+            if (!empty($notFoundEmails)) {
+                $warnings[] = 'User(s) not found with email(s): ' . implode(', ', $notFoundEmails);
+            }
+            if (!empty($warnings)) {
+                $response['warnings'] = $warnings;
+            }
+
+            return response()->json($response, 201);
         } catch (\Exception $e) {
             Log::error("Error creating list", [
                 'user_id' => $request->user()->id ?? null,

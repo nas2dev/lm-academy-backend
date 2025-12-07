@@ -411,10 +411,20 @@ class UserController extends Controller
                 $query->where("name", "User");
             })
                 ->where("acc_status", 1) // Only active users
+                ->with("roles:id,name") // Include role information
                 ->select("id", 'first_name', 'last_name', 'email')
                 ->orderBy("first_name", "asc")
                 ->orderBy("last_name", "asc")
-                ->get();
+                ->get()
+                ->map(function ($user) {
+                    return [
+                        'id' => $user->id,
+                        'first_name' => $user->first_name,
+                        'last_name' => $user->last_name,
+                        'email' => $user->email,
+                        'role' => $user->roles->first()->name ?? null, // Include role name
+                    ];
+                });
 
             return response()->json([
                 "success" => true,
@@ -429,6 +439,62 @@ class UserController extends Controller
             return response()->json([
                 "success" => false,
                 "message" => "Error getting active users for dropdown",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getActiveUsersByRole(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                "role" => "nullable|string|exists:roles,name"
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 422);
+            }
+
+            $role = $request->input("role", "User"); // Default to "User" role if not specified
+
+            // Get all active users with the specified role
+            $users = User::whereHas("roles", function ($query) use ($role) {
+                $query->where("name", $role);
+            })
+                ->where("acc_status", 1) // Only active users
+                ->with("roles:id,name") // Include role information
+                ->select("id", 'first_name', 'last_name', 'email')
+                ->orderBy("first_name", "asc")
+                ->orderBy("last_name", "asc")
+                ->get()
+                ->map(function ($user) {
+                    return [
+                        'id' => $user->id,
+                        'first_name' => $user->first_name,
+                        'last_name' => $user->last_name,
+                        'email' => $user->email,
+                        'role' => $user->roles->first()->name ?? null, // Include role name
+                    ];
+                });
+
+            return response()->json([
+                "success" => true,
+                "message" => "Active users retrieved successfully",
+                "users" => $users
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Error getting active users by role", [
+                "role" => $request->input("role"),
+                "error" => $e->getMessage()
+            ]);
+
+            return response()->json([
+                "success" => false,
+                "message" => "Error getting active users by role",
                 "error" => $e->getMessage()
             ], 500);
         }

@@ -44,6 +44,7 @@ Route::controller(UserController::class)->prefix('users')->middleware(['api', 'j
     Route::middleware('role:Admin')->group(function () {
         Route::get('all-users', 'allUsers')->name('users.allUsers');
         Route::get('/active-users-for-dropdown', 'getActiveUsersForDropdown')->name('users.getActiveUsersForDropdown');
+        Route::get('/active-users-by-role', 'getActiveUsersByRole')->name('users.getActiveUsersByRole');
         Route::post('change-role', "changeUserRole")->name("users.changeUserRole");
         Route::post('change-status', "changeAccountStatus")->name("users.changeAccountStatus");
     });
