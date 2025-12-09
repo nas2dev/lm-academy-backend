@@ -37,9 +37,6 @@ jobs:
       # - name: Generate JWT Secret
       #   run: php artisan jwt:secret --force
 
-      - name: Optimize Clear
-        run: php artisan optimize:clear
-
       - name: Optimize
         run: php artisan optimize
 
