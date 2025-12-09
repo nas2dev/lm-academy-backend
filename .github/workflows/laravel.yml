@@ -15,7 +15,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1" # Set the PHP version you need for Laravel
+          php-version: "8.2" # Set the PHP version you need for Laravel
           extensions: mbstring, dom # Add any extensions you need
           tools: composer, php-cs-fixer # Install Composer and other tools
 
