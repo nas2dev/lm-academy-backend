@@ -1,0 +1,60 @@
+name: Laravel CI/CD with FTP
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1" # Set the PHP version you need for Laravel
+          extensions: mbstring, dom # Add any extensions you need
+          tools: composer, php-cs-fixer # Install Composer and other tools
+
+      - name: FTP Deploy
+        uses: SamKirkland/FTP-Deploy-Action@4.1.0
+        with:
+          server: ftp.codingtrainingacademy.com # Adjust with your FTP server details
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./ # Use the root directory of your Laravel app
+          server-dir: /lm-academy/lm-academy-backend/ # Adjust if needed
+
+      - name: Install Composer Dependencies
+        run: composer update -q --no-ansi --no-interaction --no-progress --prefer-dist
+
+      # - name: Generate Key
+      #   run: php artisan key:generate --ansi
+
+      # - name: Generate JWT Secret
+      #   run: php artisan jwt:secret --force
+
+      - name: Optimize Clear
+        run: php artisan optimize:clear
+
+      - name: Optimize
+        run: php artisan optimize
+
+      - name: Directory Permissions
+        run: chmod -R 777 storage bootstrap/cache
+
+      - name: Cache Configuration
+        run: php artisan config:cache
+
+      - name: Cache Routes
+        run: php artisan route:cache
+
+      - name: Cache Views
+        run: php artisan view:cache
+
+      # Uncomment if you want to run migrations
+      # - name: Run Migrations
+      #   run: php artisan migrate --force
