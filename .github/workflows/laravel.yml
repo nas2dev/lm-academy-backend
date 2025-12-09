@@ -37,23 +37,23 @@ jobs:
       # - name: Generate JWT Secret
       #   run: php artisan jwt:secret --force
 
-      # - name: Optimize Clear
-      #   run: php artisan optimize:clear
+      - name: Optimize Clear
+        run: php artisan optimize:clear
 
-      # - name: Optimize
-      #   run: php artisan optimize
+      - name: Optimize
+        run: php artisan optimize
 
       - name: Directory Permissions
         run: chmod -R 777 storage bootstrap/cache
 
-      # - name: Cache Configuration
-      #   run: php artisan config:cache
+      - name: Cache Configuration
+        run: php artisan config:cache
 
-      # - name: Cache Routes
-      #   run: php artisan route:cache
+      - name: Cache Routes
+        run: php artisan route:cache
 
-      # - name: Cache Views
-      #   run: php artisan view:cache
+      - name: Cache Views
+        run: php artisan view:cache
 
       # Uncomment if you want to run migrations
       # - name: Run Migrations
