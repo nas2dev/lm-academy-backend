@@ -1,0 +1,57 @@
+# check that mod_headers is enabled
+<IfModule mod_headers.c>
+    # enable the runtime rewrite engine
+    RewriteEngine On
+
+    RewriteCond "%{HTTP:Accept-encoding}" "br"
+    RewriteCond "%{REQUEST_FILENAME}.br" -s
+    RewriteRule "^(.*)\.(html|css|js)$" "/$1.$2.br" [QSA]
+
+    RewriteRule "\.html\.br$" "-" [T=text/html,E=no-brotli:1,E=no-gzip:1]
+    RewriteRule "\.css\.br$" "-" [T=text/css,E=no-brotli:1,E=no-gzip:1]
+    RewriteRule "\.js\.br$" "-" [T=text/javascript,E=no-brotli:1,E=no-gzip:1]
+
+    <FilesMatch "(\.html\.br|\.js\.br|\.css\.br)$">
+      Header append Content-Encoding br
+      Header append Vary Accept-Encoding
+    </FilesMatch>
+
+    RewriteCond "%{HTTP:Accept-encoding}" "gzip"
+    RewriteCond "%{REQUEST_FILENAME}.gz" -s
+    RewriteRule "^(.*)\.(html|css|js)$" "/$1.$2.gz" [QSA]
+
+    RewriteRule "\.html\.gz$" "-" [T=text/html,E=no-brotli:1,E=no-gzip:1]
+    RewriteRule "\.css\.gz$" "-" [T=text/css,E=no-brotli:1,E=no-gzip:1]
+    RewriteRule "\.js\.gz$" "-" [T=text/javascript,E=no-brotli:1,E=no-gzip:1]
+
+    <FilesMatch "(\.html\.gz|\.js\.gz|\.css\.gz)$">
+      Header append Content-Encoding gzip
+      Header append Vary Accept-Encoding
+    </FilesMatch>
+</IfModule>
+
+# enable gzip compressing for the following mime-types
+<IfModule mod_deflate.c>
+	AddOutputFilterByType DEFLATE text/plain
+	AddOutputFilterByType DEFLATE text/html
+	AddOutputFilterByType DEFLATE text/xml
+	AddOutputFilterByType DEFLATE text/shtml
+	AddOutputFilterByType DEFLATE text/css
+	AddOutputFilterByType DEFLATE application/xml
+	AddOutputFilterByType DEFLATE application/xhtml+xml
+	AddOutputFilterByType DEFLATE application/rss+xml
+	AddOutputFilterByType DEFLATE application/javascript
+	AddOutputFilterByType DEFLATE application/x-javascript
+</IfModule>
+
+### IMPORTANT ###
+### Because we can't change the webroot folder to a subfolder of the document root, we need this rewrite rules ###
+
+RewriteEngine on
+
+# serve existing files in the /public folder as if they were in /
+RewriteCond %{REQUEST_URI} !public/
+RewriteRule (.*) /public/$1 [L]
+
+# route everything else to /public/index.php
+RewriteRule ^ /public/index.php [L]
