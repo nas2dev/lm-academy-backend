@@ -37,11 +37,11 @@ class AuthController extends Controller
     {
         $credentials = request(['email', 'password']);
 
-        if (! $token = auth()->attempt($credentials)) {
+        if (!$token = auth()->attempt($credentials)) {
             return response()->json(['error' => 'Your email or password is invalid'], 401);
         }
 
-        if(!auth()->user()->acc_status) {
+        if (!auth()->user()->acc_status) {
             auth()->logout();
             return response()->json([
                 'error' => 'Account disabled. Please contact the administrators.'
@@ -60,11 +60,11 @@ class AuthController extends Controller
     {
         $user_id = auth()->id();
 
-         $user = User::where("id", $user_id)->with(["roles", "UserInfo"])->first();
+        $user = User::where("id", $user_id)->with(["roles", "UserInfo"])->first();
 
-         return response()->json([
+        return response()->json([
             "user" => $user
-         ]);
+        ]);
     }
 
     /**
@@ -98,7 +98,7 @@ class AuthController extends Controller
             $oldToken = JWTAuth::getToken();
             $newToken = auth()->refresh();
 
-            if($oldToken) {
+            if ($oldToken) {
                 try {
                     JWTAuth::invalidate($oldToken);
                 } catch (\Exception $e) {
@@ -131,15 +131,16 @@ class AuthController extends Controller
         ]);
     }
 
-    public function sendRegistrationInvite(Request $request) {
+    public function sendRegistrationInvite(Request $request)
+    {
 
-        if($this->user->hasRole("Admin")) {
+        if ($this->user->hasRole("Admin")) {
             try {
                 $validator = Validator::make($request->all(), [
                     "invited_users" => 'required|string'
                 ]);
 
-                if($validator->fails()) {
+                if ($validator->fails()) {
                     return response()->json($validator->errors()->toJson(), 400);
                 }
 
@@ -152,23 +153,22 @@ class AuthController extends Controller
                 $existing_users = [];
                 $successfully_invited = [];
 
-                foreach($invited_users as $email) {
-                    if(filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                foreach ($invited_users as $email) {
+                    if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
                         $valid_emails[] = $email;
-                    }
-                    else {
+                    } else {
                         $invalid_emails[] = $email;
                     }
                 }
 
-                if(!empty($valid_emails)) {
+                if (!empty($valid_emails)) {
                     $existingUsersQuery = User::whereIn("email", $valid_emails)->pluck("email")->toArray();
                     $existing_users = $existingUsersQuery;
                     $valid_emails = array_diff($valid_emails, $existing_users);
                 }
 
-                if(count($valid_emails) > 0) {
-                    foreach($valid_emails as $email) {
+                if (count($valid_emails) > 0) {
+                    foreach ($valid_emails as $email) {
                         try {
                             $registrionCode = strtoupper(Str::random(6));
                             $token = Str::random(64);
@@ -197,7 +197,7 @@ class AuthController extends Controller
 
 
                         } catch (\Exception $e) {
-                            \Log::error("Error sending registration invite: " . [
+                            \Log::error("Error sending registration invite", [
                                 "email" => $email,
                                 "error" => $e->getMessage()
                             ]);
@@ -234,7 +234,7 @@ class AuthController extends Controller
 
 
             } catch (\Exception $e) {
-                \Log::error("Error sending registration invite: " . [
+                \Log::error("Error sending registration invite", [
                     "email" => $email,
                     "error" => $e->getMessage()
                 ]);
@@ -248,17 +248,17 @@ class AuthController extends Controller
             }
 
 
-        }
-        else {
+        } else {
             return response()->json([
                 "message" => "You don't have permission to send registration invite ",
-                 "first_name" => $this->user->first_name. " " . $this->user->last_name
+                "first_name" => $this->user->first_name . " " . $this->user->last_name
             ], 403);
         }
 
     }
 
-    public function verifyRegistrationToken(Request $request) {
+    public function verifyRegistrationToken(Request $request)
+    {
 
         try {
             $validator = Validator::make($request->all(), [
@@ -266,7 +266,7 @@ class AuthController extends Controller
                 "email" => "required|email"
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Invalid request parameters",
@@ -278,11 +278,11 @@ class AuthController extends Controller
             $token = $request->token;
 
             $verificationToken = EmailVerificationToken::where("email", $email)
-                        ->where("created_at", ">=", now()->subMinutes(self::TOKEN_VERIFICATION_DURATION_MINUTES))
-                        ->where("token", $token)->first();
+                ->where("created_at", ">=", now()->subMinutes(self::TOKEN_VERIFICATION_DURATION_MINUTES))
+                ->where("token", $token)->first();
 
 
-            if(!$verificationToken) {
+            if (!$verificationToken) {
                 return response()->json([
                     "success" => false,
                     "message" => "Invalid or expired registration token"
@@ -293,7 +293,7 @@ class AuthController extends Controller
 
             $existingUser = User::where("email", $email)->first();
 
-            if($existingUser) {
+            if ($existingUser) {
                 return response()->json([
                     "success" => false,
                     "message" => "User already exists"
@@ -318,87 +318,89 @@ class AuthController extends Controller
         }
     }
 
-    public function forgotPassword(Request $request): JsonResponse {
+    public function forgotPassword(Request $request): JsonResponse
+    {
         try {
-           $validator = Validator::make($request->all(), [
-            "email" => "required|email|exists:users,email"
-           ]);
+            $validator = Validator::make($request->all(), [
+                "email" => "required|email|exists:users,email"
+            ]);
 
-           if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
                     "message" => "Validation failed",
                     "errors" => $validator->errors()
                 ], 422);
-           }
+            }
 
-           $email = $request->email;
-           $user = User::where("email", $email)->first();
+            $email = $request->email;
+            $user = User::where("email", $email)->first();
 
-           if(!$user) {
-            return response()->json([
-                'success' => false,
-                "message" => "Email not found in our system",
-            ], 404);
-           }
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    "message" => "Email not found in our system",
+                ], 404);
+            }
 
-           $resetToken = Str::random(64);
+            $resetToken = Str::random(64);
 
-           //store reset token in database=
-           DB::table("password_reset_tokens")->updateOrInsert(
-            ["email" => $email],
-            [
-                "token" => $resetToken,
-                "created_at" => now()
-            ]
-           );
-           // prepare mail data
-           $resetUrl = config("app.frontend_url") . "/reset-password?token=" . $resetToken . "&email=" . urlencode($email);
-           $expirationTime = now()->addMinutes(self::PASSWORD_RESET_EXPIRATION_MINUTES)->format('F j, Y \a\t g:i A');
+            //store reset token in database=
+            DB::table("password_reset_tokens")->updateOrInsert(
+                ["email" => $email],
+                [
+                    "token" => $resetToken,
+                    "created_at" => now()
+                ]
+            );
+            // prepare mail data
+            $resetUrl = config("app.frontend_url") . "/reset-password?token=" . $resetToken . "&email=" . urlencode($email);
+            $expirationTime = now()->addMinutes(self::PASSWORD_RESET_EXPIRATION_MINUTES)->format('F j, Y \a\t g:i A');
 
-           $mailData = [
-            "reset_url" => $resetUrl,
-            "user_name" => $user->first_name . " " . $user->last_name,
-            "expiration_time" => $expirationTime
-           ];
+            $mailData = [
+                "reset_url" => $resetUrl,
+                "user_name" => $user->first_name . " " . $user->last_name,
+                "expiration_time" => $expirationTime
+            ];
 
-           Mail::to($email)->send(new PasswordResetMail($mailData));
+            Mail::to($email)->send(new PasswordResetMail($mailData));
 
-           \Log::info("Password reset email sent", [
+            \Log::info("Password reset email sent", [
                 "email" => $email,
                 "user_id" => $user->id
-           ]);
+            ]);
 
-           return response()->json([
+            return response()->json([
                 'success' => true,
                 "message" => "Password reset link sent to your email address",
                 "expires_in" => self::PASSWORD_RESET_EXPIRATION_MINUTES
-           ], 200);
+            ], 200);
 
 
         } catch (\Exception $e) {
             \Log::error("Error sending password reset email", [
                 "email" => $email,
                 "error" => $e->getMessage()
-           ]);
+            ]);
 
-           return response()->json([
+            return response()->json([
                 "success" => false,
                 "message" => "Failed to send password reset email. Please try again.",
                 "error" => $e->getMessage()
-           ], 500);
+            ], 500);
         }
     }
 
 
-    public function verifyPasswordResetToken(Request $request): JsonResponse {
+    public function verifyPasswordResetToken(Request $request): JsonResponse
+    {
         try {
             $validator = Validator::make($request->all(), [
                 "token" => "required|string",
                 "email" => "required|email"
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Invalid request parameters",
@@ -410,7 +412,7 @@ class AuthController extends Controller
 
             $resetToken = $this->checkPasswordResetToken($email, $token);
 
-            if(!$resetToken) {
+            if (!$resetToken) {
                 return response()->json([
                     "success" => false,
                     "message" => "Invalid or expired token"
@@ -422,8 +424,7 @@ class AuthController extends Controller
                 "message" => "Reset token is valid",
                 "email" => $email,
             ]);
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             \Log::error("Error verifying password reset token", [
                 "email" => $email,
                 "error" => $e->getMessage()
@@ -438,7 +439,8 @@ class AuthController extends Controller
         }
     }
 
-    public function resetPassword(Request $request): JsonResponse {
+    public function resetPassword(Request $request): JsonResponse
+    {
         try {
             $validator = Validator::make($request->all(), [
                 "token" => "required|string",
@@ -446,7 +448,7 @@ class AuthController extends Controller
                 "password" => "required|string|min:8|confirmed"
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validator failed",
@@ -460,7 +462,7 @@ class AuthController extends Controller
 
 
             $resetToken = $this->checkPasswordResetToken($email, $token);
-            if(!$resetToken) {
+            if (!$resetToken) {
                 return response()->json([
                     "success" => false,
                     "message" => "Invalid or expired token"
@@ -470,7 +472,7 @@ class AuthController extends Controller
             // user -> update
 
             $user = User::where("email", $email)->first();
-            if(!$user) {
+            if (!$user) {
                 return response()->json([
                     "success" => false,
                     "message" => "User not found"
@@ -490,8 +492,7 @@ class AuthController extends Controller
                 "message" => "Password has been reset successfully"
             ]);
 
-        }
-        catch( \Exception $e) {
+        } catch (\Exception $e) {
             \Log::error("Error resetting password", [
                 "email" => $email,
                 "error" => $e->getMessage()
@@ -505,43 +506,45 @@ class AuthController extends Controller
         }
     }
 
-    private function checkPasswordResetToken(string $email, string $token): bool {
+    private function checkPasswordResetToken(string $email, string $token): bool
+    {
         $resetToken = DB::table("password_reset_tokens")
-                ->where("email", $email)
-                ->where("token", $token)
-                ->where("created_at", ">=", now()->subMinutes(self::PASSWORD_RESET_EXPIRATION_MINUTES))
-                ->first();
+            ->where("email", $email)
+            ->where("token", $token)
+            ->where("created_at", ">=", now()->subMinutes(self::PASSWORD_RESET_EXPIRATION_MINUTES))
+            ->first();
 
         return $resetToken ? true : false;
     }
 
-    public function register(Request $request): JsonResponse {
+    public function register(Request $request): JsonResponse
+    {
         try {
-           $validator = Validator::make($request->all(), [
-            "registration_code" => "required|string",
-            "first_name" => "required|string|max:255",
-            "last_name" => "required|string|max:255",
-            "gender" => "required|in:male,female,diverse",
-            "email" => "required|email|unique:users,email",
-            "password" => "required|string|min:8|confirmed",
-           ]);
+            $validator = Validator::make($request->all(), [
+                "registration_code" => "required|string",
+                "first_name" => "required|string|max:255",
+                "last_name" => "required|string|max:255",
+                "gender" => "required|in:male,female,diverse",
+                "email" => "required|email|unique:users,email",
+                "password" => "required|string|min:8|confirmed",
+            ]);
 
-           if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
                     "errors" => $validator->errors()
                 ], 422);
-           }
+            }
 
-        //verify registration code
-           $verificationToken = EmailVerificationToken::where('code', $request->registration_code)
-                                                        ->where("email", $request->email)
-                                                        // ->where("token", $request->token)
-                                                        ->where("created_at", ">=", now()->subMinutes(self::TOKEN_VERIFICATION_DURATION_MINUTES))
-                                                        ->first();
+            //verify registration code
+            $verificationToken = EmailVerificationToken::where('code', $request->registration_code)
+                ->where("email", $request->email)
+                // ->where("token", $request->token)
+                ->where("created_at", ">=", now()->subMinutes(self::TOKEN_VERIFICATION_DURATION_MINUTES))
+                ->first();
 
-            if(!$verificationToken) {
+            if (!$verificationToken) {
                 return response()->json([
                     "success" => false,
                     "message" => "Invalid or expired registration code"
@@ -557,7 +560,7 @@ class AuthController extends Controller
                 "password" => Hash::make($request->password),
                 "profile_completed" => false,
                 "email_verified_at" => now(),
-                ]);
+            ]);
 
             $user->assignRole("User");
 
@@ -589,18 +592,19 @@ class AuthController extends Controller
         }
     }
 
-    public function completeProfile(Request $request) {
+    public function completeProfile(Request $request)
+    {
         try {
             $user = auth()->user(); // academic_year == null, profile_completed == false, image == null etc
 
-            if(!$user) {
+            if (!$user) {
                 return response()->json([
                     "success" => false,
                     "message" => "Unauthorized"
                 ], 401);
             }
 
-            if($user->profile_completed) {
+            if ($user->profile_completed) {
                 return response()->json([
                     "success" => false,
                     "message" => "Profile is already completed"
@@ -616,7 +620,7 @@ class AuthController extends Controller
                 "profile_image" => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120' // 5MB
             ]);
 
-            if($validator->fails()) {
+            if ($validator->fails()) {
                 return response()->json([
                     "success" => false,
                     "message" => "Validation failed",
@@ -626,9 +630,9 @@ class AuthController extends Controller
 
             $imagePath = null;
 
-            if($request->hasFile("profile_image")) {
+            if ($request->hasFile("profile_image")) {
                 $image = $request->file("profile_image");
-                $imageName = time() . '_'. $user->id . "." . $image->getClientOriginalExtension(); //12312312321_41.jpg
+                $imageName = time() . '_' . $user->id . "." . $image->getClientOriginalExtension(); //12312312321_41.jpg
                 $imagePath = $image->storeAs("profile_images", $imageName, 'public'); //storage/profile_images/12312312321_41.jpg
             }
 
