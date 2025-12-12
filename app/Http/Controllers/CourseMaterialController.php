@@ -847,10 +847,10 @@ class CourseMaterialController extends Controller
                     default => 0,
                 };
 
-                $scoreboard = Scoreboard::firstOrCreate([
-                    'user_id' => $user->id,
-                    'score' => 0
-                ]);
+                $scoreboard = Scoreboard::firstOrCreate(
+                    ['user_id' => $user->id],
+                    ['score' => 0]
+                );
 
                 $scoreboard->score += $points;
                 $scoreboard->save();
