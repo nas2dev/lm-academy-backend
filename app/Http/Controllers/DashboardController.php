@@ -146,6 +146,7 @@ class DashboardController extends Controller
                 'id' => $course->id,
                 'title' => $course->title,
                 'enrolled_count' => $course->enrolled_count,
+                'thumbnail' => $course->intro_image_url,
             ];
         })->values();
 
