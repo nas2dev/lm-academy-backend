@@ -8,10 +8,12 @@ use App\Models\Scoreboard;
 
 class ScoreboardController extends Controller
 {
-    public function getScoreboard(): JsonResponse
+    public function getScoreboard(Request $request): JsonResponse
     {
         try {
-            $scoreboard = Scoreboard::with(
+            $limit = $request->query('limit');
+
+            $query = Scoreboard::with(
                 // ['user:id,first_name,last_name,email,image']
                 [
                     'user' => function ($query) {
@@ -22,8 +24,13 @@ class ScoreboardController extends Controller
                 ->join('users', 'scoreboards.user_id', '=', 'users.id')
                 ->orderBy('scoreboards.score', 'DESC')
                 ->orderBy('users.first_name', 'ASC')
-                ->select('scoreboards.*')
-                ->get();
+                ->select('scoreboards.*');
+
+            if ($limit) {
+                $query->take((int) $limit);
+            }
+
+            $scoreboard = $query->get();
 
             return response()->json([
                 'success' => true,

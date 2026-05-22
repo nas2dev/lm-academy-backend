@@ -11,6 +11,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\UserListController;
 use App\Http\Controllers\ScoreboardController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ChunkUploadController;
 use App\Http\Controllers\CourseModuleController;
 use App\Http\Controllers\CourseSectionController;
@@ -125,6 +126,10 @@ Route::controller(UserCourseProgressController::class)->prefix('course-progress'
 
 Route::controller(ScoreboardController::class)->prefix('scoreboard')->middleware(['api', 'jwt.auth.token'])->group(function () {
     Route::get('/', 'getScoreboard')->name('scoreboard.getScoreboard');
+});
+
+Route::controller(DashboardController::class)->prefix('dashboard')->middleware(['api', 'jwt.auth.token'])->group(function () {
+    Route::get('/', 'index')->name('dashboard.index');
 });
 
 Route::controller(UserListController::class)->prefix("lists")->middleware(['api', 'jwt.auth.token'])->group(function () {
